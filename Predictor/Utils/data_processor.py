@@ -2,6 +2,7 @@ import torchaudio as ta
 from dataclasses import dataclass
 import torch as t
 import os
+from sklearn.model_selection import train_test_split
 
 
 @dataclass
@@ -10,6 +11,7 @@ class RawCollector:
     target_file = 'data/trans.txt'
 
     def __post_init__(self):
+        print(f'collecting...')
         self.load_wave_text_dict()
         self.build_wave_list()
 
@@ -44,7 +46,10 @@ class RawCollector:
 
     def __getitem__(self, item):
         wave_file_path = self.wave_list[item]
-        return wave_file_path, self.get_target(wave_file_path)
+        return {'wave':wave_file_path, 'tgt':self.get_target(wave_file_path)}
+
+    def __len__(self):
+        return len(self.wave_list)
 
 # raw_collector = RawCollector()
 # for i in raw_collector:
@@ -56,35 +61,46 @@ class RawCollector:
 class SampleFactory:
     wave_file_path: str
     text: str
+    wave_feature: t.Tensor = None
     text_id: list = None
 
     @classmethod
-    def get_sample(cls, wave_file_path, text, vocab):
-        return cls(wave_file_path, text).build_feature().build_text(vocab)
+    def build_sample(cls, wave_file_path, text, vocab):
+        obj = cls(wave_file_path, text)
+        obj.build_text(vocab)
+        obj.build_feature()
+        return obj
 
     def build_text(self, vocab):
+        self.text_id = vocab.numericalize(self.text, True, True)
+
+    def build_feature(self):
         tensor, sample_rate = ta.load(self.wave_file_path, normalization=True)
+        self.sample_rate = sample_rate
+        self.wave_feature = ta.transforms.MelSpectrogram(sr=sample_rate)(tensor)
 
 
-    def build_feature(self):
-        raise NotImplementedError
+@dataclass
+class SampleStorge:
+    samples = []
+    samples_dev = []
 
-# raw_collector = RawCollector()
-# for i in raw_collector:
-#     print(i)
-#     break
-# sample = BaseSampleFactory.get_sample(*i)
+    def __repr__(self):
+        return f'storge with {len(self.samples)} samples'
 
+    def add_sample(self, sample):
+        self.samples.append(sample)
 
-class MelSampleFactory:
+    def save(self, path):
+        t.save(self.samples, path)
 
-    def __init__(self):
-        super(MelSampleFactory, self).__init__()
+    @classmethod
+    def load(cls, path):
+        obj = cls()
+        obj.sample = t.load(path)
+        return obj
 
-    def build_feature(self):
-        wave = ta.load(self.wave_file_path, normalization=True)
-        pass
-
-    def build_text(self):
-        pass
+    def split(self, test_size):
+        assert self.samples_dev != []
+        self.samples, self.samples_dev = train_test_split(self.samples, test_size)
 

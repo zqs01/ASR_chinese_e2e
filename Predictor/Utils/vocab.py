@@ -26,12 +26,12 @@ class Vocab:
     def add_sentance(self, sentance):
         self.counter.update(self.tokenize_fn(sentance))
 
-    def build(self, texts, max_num=30000, min_freq=1, tgt_fields=None):
+    def build(self, texts, max_num=30000, min_freq=1, build_fields=None):
         for text in tqdm(texts):
             if isinstance(text, dict):
                 for key in text.keys():
-                    if tgt_fields is not None:
-                        if key in tgt_fields:
+                    if build_fields is not None:
+                        if key in build_fields:
                             self.add_sentance(text[key])
             elif isinstance(text, str):
                 self.add_sentance(text)
