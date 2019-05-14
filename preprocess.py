@@ -21,6 +21,7 @@ def preprocess():
     print(storge)
     storge.save(STORGE_FILE)
 
+
 if __name__ == '__main__':
     fire.Fire()
 
