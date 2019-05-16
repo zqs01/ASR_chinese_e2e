@@ -25,8 +25,8 @@ class AudioDataset(Dataset):
         elif self.part == 'dev':
             return len(self.storge.samples_dev)
 
-    def create_dataloader(self, batch_size, collate_fn):
-        loader = DataLoader(self, batch_size=batch_size, drop_last=True, collate_fn=True)
+    def create_dataloader(self, batch_size, collate_fn=collate_fn):
+        loader = DataLoader(self, batch_size=batch_size, drop_last=True, collate_fn=collate_fn)
         return loader
 
 
