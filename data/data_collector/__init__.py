@@ -1,0 +1,1 @@
+from .ai_shell_1 import CollectorAiShell1
