@@ -12,7 +12,8 @@ class TrainConfig(DataConfigAiShell1):
     lr = 1e-3
     batch_size = 16
     eval_batch_size = 32
-    num_epoch = 10
+    num_epoch = 1
+    warm_up = 4000
     device_id = (0, 1)
     exp_name = 'test3'
     drop_exp = True
@@ -41,15 +42,20 @@ def train(**kwargs):
     config.fn_show()
 
     train_iter, vocab = build_dataloader(
-        collector_path=config.collector_path, vocab_path=config.vocab_path, batch_size=config.batch_size, part='train')
+        collector_path=config.collector_path, vocab_path=config.vocab_path, batch_size=config.batch_size, part='train',
+        sample_rate=config.sample_rate, window_size=config.window_size, n_mels=config.n_mels, augment=config.augment)
     test_iter, _ = build_dataloader(
-        collector_path=config.collector_path, vocab_path=config.vocab_path, batch_size=config.eval_batch_size, part='test')
+        collector_path=config.collector_path, vocab_path=config.vocab_path, batch_size=config.eval_batch_size, part='test',
+        sample_rate=config.sample_rate, window_size=config.window_size, n_mels=config.n_mels, augment=False)
     dev_iter, _ = build_dataloader(
-        collector_path=config.collector_path, vocab_path=config.vocab_path, batch_size=config.eval_batch_size, part='dev')
+        collector_path=config.collector_path, vocab_path=config.vocab_path, batch_size=config.eval_batch_size, part='dev',
+        sample_rate=config.sample_rate, window_size=config.window_size, n_mels=config.n_mels, augment=False
+    )
 
     model = Model(config, vocab)
     optimizer = t.optim.Adam(model.parameters(), lr=config.lr)
-    optimizer = NoamOpt(config.hidden_size, 1, 4000, optimizer)
+    assert config.hidden_size
+    optimizer = NoamOpt(config.hidden_size, 1, config.warm_up, optimizer)
     trainer = BaseTrainer(
         model=model,
         optimizer=optimizer,

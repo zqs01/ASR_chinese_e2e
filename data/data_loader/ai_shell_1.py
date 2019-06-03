@@ -12,16 +12,17 @@ padder = Padder()
 
 
 class AiShell1(Dataset):
-    def __init__(self, datas, vocab, argument=False):
+    def __init__(self, datas, vocab, sample_rate=16000, window_size=400, n_mels=40, augment=False):
         super(AiShell1, self).__init__()
         self.datas = datas
         self.vocab = vocab
-        self.parser = AudioParser()
+        self.parser = AudioParser(sr=sample_rate, n_mels=n_mels, n_fft=window_size)
+        self.augment = augment
 
     def __getitem__(self, item):
         line = json.loads(self.datas[item])
         tgt = self.vocab.convert_str(line['tgt'])
-        wave = self.parser.parse(line['wave'])
+        wave = self.parser.parse(line['wave'], augment=self.augment)
         return wave, tgt
 
     def __len__(self):
@@ -45,11 +46,12 @@ class collat:
         return pack
 
 
-def build_dataloader(collector_path, vocab_path, batch_size, part='test', use_cuda=True):
+def build_dataloader(collector_path, vocab_path, batch_size, part='test', use_cuda=True,
+                     sample_rate=16000, window_size=400, n_mels=40, augment=False):
     with open(collector_path + '_' + part + '.json') as reader:
         datas = reader.readlines()
     vocab = Vocab.load(vocab_path)
-    data_set = AiShell1(datas, vocab)
+    data_set = AiShell1(datas, vocab, sample_rate=sample_rate, window_size=window_size, n_mels=n_mels, augment=augment)
     data_loader = DataLoader(data_set, batch_size, collate_fn=collat(use_cuda))
     return data_loader, vocab
 

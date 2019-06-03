@@ -9,5 +9,6 @@ def calculate_cer(s1, s2):
         s1 (string): space-separated sentence (hyp)
         s2 (string): space-separated sentence (gold)
     """
-    return Lev.distance(s1, s2)
+    word_num = len(s2)
+    return Lev.distance(s1, s2) / word_num
 

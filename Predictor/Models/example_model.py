@@ -46,12 +46,12 @@ class ExampleModel(BaseModel):
         @dataclass
         class ModelConfig(BaseConfig):
             emb = 100
-            hidden_size=300
+            hidden_size = 300
 
         return ModelConfig
 
     def save(self, path):
-        all = {'state_dict': self.state_dict(), 'config':self.config, 'vocab': self.vocab}
+        all = {'state_dict': self.state_dict(), 'config': self.config, 'vocab': self.vocab}
         t.save(all, path)
         print(f'\nmodel saved to {path}')
 
