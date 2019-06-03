@@ -1,10 +1,12 @@
 import torch as t
-from torch.nn import MultiheadAttention
-from torch.nn import LayerNorm
-from Predictor.Bases.base_model import BaseModel, BaseConfig
-from dataclasses import dataclass
 import torch.nn.functional as F
 import math
+from dataclasses import dataclass
+from torch.nn import MultiheadAttention
+from torch.nn import LayerNorm
+
+from Predictor.Bases.base_model import BaseModel, BaseConfig
+from Predictor.Bases.base_modules import Masker
 
 
 class Transformer(BaseModel):
@@ -12,6 +14,7 @@ class Transformer(BaseModel):
         super(Transformer, self).__init__()
         self.config = config
         self.vocab = vocab
+        self.embedding = Embeder()
         self.conv = Conv()
         self.encoder = Encoder()
         self.decoder = Decoder()
@@ -30,9 +33,12 @@ class Transformer(BaseModel):
     def get_default_config(cls):
         @dataclass
         class ModelConfig(BaseConfig):
-            num_layer = 6
-            feed_forward_size = 256
+            input_size = None
             hidden_size = 128
+            ff_size = 512
+            num_head = 8
+            dropout = 0.1
+            layer_num = 6
 
         return ModelConfig
 
@@ -42,6 +48,43 @@ class Transformer(BaseModel):
 
     def beam_search(self):
         pass
+
+
+class Embeder(t.nn.Module):
+    def __init__(self, vocab_size, embedding_dim):
+        super(Embeder, self).__init__()
+        self.word_embedding = t.nn.Embedding()
+        self.position_embeder = PositionalEncoding(embedding_dim)
+
+    def forward(self, feature):
+        pass
+
+
+class PositionalEncoding(nn.Module):
+    """
+    Positional Encoding class
+    """
+
+    def __init__(self, dim_model, max_length=2000):
+        super(PositionalEncoding, self).__init__()
+
+        pe = torch.zeros(max_length, dim_model, requires_grad=False)
+        position = torch.arange(0, max_length).unsqueeze(1).float()
+        exp_term = torch.exp(torch.arange(0, dim_model, 2).float() * -(math.log(10000.0) / dim_model))
+        pe[:, 0::2] = torch.sin(position * exp_term)  # take the odd (jump by 2)
+        pe[:, 1::2] = torch.cos(position * exp_term)  # take the even (jump by 2)
+        pe = pe.unsqueeze(0)
+        self.register_buffer('pe', pe)
+
+    def forward(self, input):
+        """
+        args:
+            input: B x T x D
+        output:
+            tensor: B x T
+        """
+        return self.pe[:, :input.size(1)]
+
 
 
 class Encoder(t.nn.Module):
@@ -182,9 +225,14 @@ class DotAttention(t.nn.Module):
         attention = t.bmm(query, key.transpose(-1, -2)) / self.C
         attention = self.softmax(attention)
         if attention_mask is not None:
-            attention = attention.masked_fill(attention_mask, -math.inf)
+            attention = attention.masked_fill(attention_mask == 0, -math.inf)
         attention = self.softmax(attention)
         attention = self.dropout(attention)
         output = t.bmm(attention, value)
         return output, attention
 
+
+class Masker:
+    """
+    class for those masks
+    """
