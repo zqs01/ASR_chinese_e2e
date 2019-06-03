@@ -60,7 +60,7 @@ class Embeder(t.nn.Module):
         pass
 
 
-class PositionalEncoding(nn.Module):
+class PositionalEncoding(t.nn.Module):
     """
     Positional Encoding class
     """
@@ -68,11 +68,11 @@ class PositionalEncoding(nn.Module):
     def __init__(self, dim_model, max_length=2000):
         super(PositionalEncoding, self).__init__()
 
-        pe = torch.zeros(max_length, dim_model, requires_grad=False)
-        position = torch.arange(0, max_length).unsqueeze(1).float()
-        exp_term = torch.exp(torch.arange(0, dim_model, 2).float() * -(math.log(10000.0) / dim_model))
-        pe[:, 0::2] = torch.sin(position * exp_term)  # take the odd (jump by 2)
-        pe[:, 1::2] = torch.cos(position * exp_term)  # take the even (jump by 2)
+        pe = t.zeros(max_length, dim_model, requires_grad=False)
+        position = t.arange(0, max_length).unsqueeze(1).float()
+        exp_term = t.exp(t.arange(0, dim_model, 2).float() * -(math.log(10000.0) / dim_model))
+        pe[:, 0::2] = t.sin(position * exp_term)  # take the odd (jump by 2)
+        pe[:, 1::2] = t.cos(position * exp_term)  # take the even (jump by 2)
         pe = pe.unsqueeze(0)
         self.register_buffer('pe', pe)
 
