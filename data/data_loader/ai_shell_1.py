@@ -37,11 +37,11 @@ class collat:
 
     def __call__(self, batch):
         pack = Pack()
-        waves = [i[0] for i in batch]
+        wave = [i[0] for i in batch]
         tgt = [i[1] for i in batch]
-        waves, wave_len = Padder.pad_tri(waves, 0)
+        wave, wave_len = Padder.pad_tri(wave, 0)
         tgt, tgt_len = Padder.pad_two(tgt, 0)
-        pack.add(waves=waves, tgt=tgt.long(), wave_len=wave_len, tgt_len=tgt_len)
+        pack.add(wave=wave, tgt=tgt.long(), wave_len=wave_len, tgt_len=tgt_len)
         return pack
 
 

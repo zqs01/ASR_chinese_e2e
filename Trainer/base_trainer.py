@@ -6,87 +6,9 @@ import numpy as np
 from typing import Any
 from collections import defaultdict
 import shutil
-from tqdm import tqdm
+from tqdm.auto import tqdm
 from dataclasses import dataclass
-
-
-class MetricsManager(object):
-    """
-    MetricsManager
-    """
-    def __init__(self):
-        self.metrics_val = defaultdict(float)
-        self.metrics_cum = defaultdict(float)
-        self.num_samples = 0
-
-    def update(self, metrics):
-        """
-        update
-        """
-        num_samples = metrics.pop("num_samples", 1)
-        self.num_samples += num_samples
-
-        for key, val in metrics.items():
-            if val is not None:
-                if isinstance(val, t.Tensor):
-                    val = val.item()
-                    self.metrics_cum[key] += val * num_samples
-                else:
-                    assert len(val) == 2
-                    val, num_words = val[0].item(), val[1]
-                    self.metrics_cum[key] += np.array(
-                        [val * num_samples, num_words])
-                self.metrics_val[key] = val
-
-    def clear(self):
-        """
-        clear
-        """
-        self.metrics_val = defaultdict(float)
-        self.metrics_cum = defaultdict(float)
-        self.num_samples = 0
-
-    def get(self, name):
-        """
-        get
-        """
-        val = self.metrics_cum.get(name)
-        if not isinstance(val, float):
-            val = val[0]
-        return val / self.num_samples
-
-    def report_val(self):
-        """
-        report_val
-        """
-        metric_strs = []
-        for key, val in self.metrics_val.items():
-            metric_str = "{}-{:.3f}".format(key.upper(), val)
-            metric_strs.append(metric_str)
-        metric_strs = "   ".join(metric_strs)
-        return metric_strs
-
-    def report_cum(self):
-        """
-        report_cum
-        """
-        metric_strs = []
-        for key, val in self.metrics_cum.items():
-            if isinstance(val, float):
-                val, num_words = val, None
-            else:
-                val, num_words = val
-
-            metric_str = "{}-{:.3f}".format(key.upper(), val / self.num_samples)
-            metric_strs.append(metric_str)
-
-            if num_words is not None:
-                ppl = np.exp(min(val / num_words, 100))
-                metric_str = "{}_PPL-{:.3f}".format(key.upper(), ppl)
-                metric_strs.append(metric_str)
-
-        metric_strs = "   ".join(metric_strs)
-        return metric_strs
+from .metric_manager import MetricsManager
 
 
 @dataclass
@@ -98,65 +20,93 @@ class BaseTrainer:
     test_iter: Any
     ckpt_root: str = 'ckpt/'
     exp_name: str = 'base_exp/'
+    log_every_iter: int = 100
     eval_every_iter: int = 1000
     save_every_iter: int = 5000
     drop_exp: bool = True
+    reference = '-loss'
 
     def __post_init__(self):
         self.exp_root = os.path.join(self.ckpt_root, self.exp_name)
-        print(os.listdir(self.ckpt_root))
+        #print(f'exps: {os.listdir(self.ckpt_root)})')
         self.global_step = 0
         self.global_epoch = 0
-        if self.drop_exp:        #TODO delete if use
+        if self.drop_exp and os.path.exists(self.exp_root):        #TODO delete if use
+            print(f'droped {self.exp_root}')
             shutil.rmtree(self.exp_root)
-        # assert not os.path.exists(self.exp_root)
         os.mkdir(self.exp_root)
         self.summary_writer = SummaryWriter(self.exp_root)
         self.config = self.model.config
+        assert self.reference[0] in ['-', '+']
 
     def train(self, from_ckpt=None):
-        if from_ckpt is not None:
-            self.load_from_ckpt(from_ckpt)
+        self.best = 1e10 if self.reference[0] == '-' else 0
+        # if from_ckpt is not None:
+        #     exp_name =
+        #     self.load_from_ckpt(exp_name=, epoch=, step=)
         for i in range(self.config.num_epoch):
             self.train_epoch()
             self.global_epoch += 1
 
     def train_epoch(self):
         self.model.train()
-        for data in tqdm(self.train_iter):
-            loss, score = self.model.iterate(data, optimizer=self.optimizer, is_train=True)
+        for data in tqdm(self.train_iter, desc=f'Epoch {self.global_epoch}', ascii=True):
+            metrics, _ = self.model.iterate(data, optimizer=self.optimizer, is_train=True)
+
+            if self.global_step % self.log_every_iter == 0 and self.global_step != 0:
+                self.summarize(metrics, 'train/')
             self.global_step += 1
             if self.global_step % self.eval_every_iter == 0 and self.global_step != 0:
-                self.evaluate(self.dev_iter)
+                self.evaluate(self.dev_iter, 'dev/')
 
             if self.global_step % self.save_every_iter == 0 and self.global_step != 0:
-                self.save_ckpt()
-        self.save_ckpt()
-        self.evaluate(self.test_iter)
+                self.save_ckpt(metrics[self.reference[1:]])
 
-    def load_from_ckpt(self, from_ckpt):
-        model_file = os.path.join(from_ckpt, )
-        opt_file = os.path.join(from_ckpt, )
+        self.save_ckpt(metrics[self.reference[1:]])
+        self.evaluate(self.test_iter, 'test/')
+
+    def load_from_ckpt(self, exp_name, epoch, step):
+        prefix = f'e{epoch}_s{step}'
+        self.global_step = step
+        self.global_epoch = epoch
+        model_file = os.path.join(self.ckpt_root, exp_name, prefix+'.model')
+        opt_file = os.path.join(self.ckpt_root, exp_name, prefix+'.opt')
         self.model.load(model_file)
         self.optimizer.load(opt_file)
         self.config = self.model.config
-        print(f'train state loaded from {from_ckpt}')
+        print(f'train state loaded from {os.path.join(self.ckpt_root, exp_name)}_epoch:{epoch} step:{step}\n')
 
-    def save_ckpt(self, ckpt):
-        model_file = os.path.join(ckpt, )
-        opt_file = os.path.join(ckpt, )
+    def save_ckpt(self, reference_score):
+        prefix = f'e{self.global_epoch}_s{self.global_step}'
+        model_file = os.path.join(self.exp_root, prefix+'.model')
+        opt_file = os.path.join(self.exp_root, prefix+'.opt')
         self.model.save(model_file)
         self.optimizer.save(opt_file)
-        print(f'train state saved to {ckpt}')
+        print(f'train state saved to {self.exp_root}_epoch:{self.global_epoch} step:{self.global_step}\n')
+    #     if (self.reference[0] == '-' and reference_score < self.best) or\
+    #             (self.reference[0] == '+' and reference_score > self.best):
+    #         self.copy_best()
+    #         self.best = reference_score
+    #
+    # def copy_best(self):
+    #     shutil
 
-    def copy_best(self):
-        pass
+    def summarize(self, pack, prefix='train/'):
+        # print(f'\nsummarizing in {self.global_step}')
+        for i in pack:
+            tmp_prefix = prefix + i
+            self.summary_writer.add_scalar(tmp_prefix, pack[i].numpy(), self.global_step)
 
-    def evaluate(self, dev_iter):
-        print(f'\n evaluating')
+    def evaluate(self, dev_iter, prefix='dev/'):
+        print(f'\nevaluating\n')
         self.model.eval()
-        for data in tqdm(dev_iter):
-            output = self.model.iterate(data, is_train=False)
+        dev_metric_manager = MetricsManager()
+        for data in dev_iter:
+            metrics, _ = self.model.iterate(data, is_train=False)
+            dev_metric_manager.update(metrics)
+        report = dev_metric_manager.report_cum()
+        report = dev_metric_manager.extract(report)
+        self.summarize(report, 'dev/')
         self.model.train()
 
     def get_time(self):

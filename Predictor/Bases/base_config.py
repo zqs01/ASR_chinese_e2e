@@ -8,11 +8,11 @@ class BaseConfig:
         for k, v in kwargs.items():
             if hasattr(self, k):
                 if getattr(self, k) != v:
-                    print(f'changed {k}:{getattr(self, k)} to {v}')
+                    print(f'\tchanged {k}:{getattr(self, k)} to {v}')
                     setattr(self, k, v)
             else:
                 setattr(self, k, v)
-                print(f'add {k}:{v}')
+                print(f'\tadd {k}:{v}')
 
     def fn_save(self, path):
         t.save(self, path)
@@ -39,8 +39,8 @@ class BaseConfig:
         for k, v in config.fn_get_attrs():
             if hasattr(self, k):
                 if getattr(self, k) != v:
-                    print(f'changed {k}:{getattr(self, k)} to {v}')
+                    print(f'\tchanged {k}:{getattr(self, k)} to {v}')
                     setattr(self, k, v)
             else:
                 setattr(self, k, v)
-                print(f'add {k}:{v}')
+                print(f'\tadd {k}:{v}')

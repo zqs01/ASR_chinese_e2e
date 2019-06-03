@@ -7,16 +7,10 @@ from torch.autograd import Variable
 import numpy as np
 import math
 
-from utils import constant
 from .common_layers import MultiHeadAttention, PositionalEncoding, PositionwiseFeedForward, \
     PositionwiseFeedForwardWithConv, get_subsequent_mask, get_non_pad_mask, get_attn_key_pad_mask, get_attn_pad_mask, \
     pad_list
 
-from utils.metrics import calculate_metrics
-
-import os
-
-from utils.lstm_utils import calculate_lm_score
 
 
 class Transformer(nn.Module):

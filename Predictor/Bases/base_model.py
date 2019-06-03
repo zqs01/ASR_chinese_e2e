@@ -45,16 +45,16 @@ class BaseModel(t.nn.Module):
 
     def save(self, path):
         t.save(self.state_dict(), path)
-        print(f'model saved to {path}')
+        print(f'\nmodel saved to {path}')
 
     def load(self, path):
         if os.path.isfile(path):
             state_dict = t.load(
                 path, map_location=lambda storage, loc: storage)
             self.load_state_dict(state_dict, strict=False)
-            print("Loaded model state from '{}'".format(path))
+            print("\nLoaded model state from '{}'".format(path))
         else:
-            print("Invalid model state file: '{}'".format(path))
+            print("\nInvalid model state file: '{}'".format(path))
 
     @classmethod
     def get_default_config(cls):

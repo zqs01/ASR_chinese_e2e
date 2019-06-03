@@ -29,6 +29,9 @@ class NoamOpt:
                (self.model_size ** (-0.5) * min(step **
                                                 (-0.5), step * self.warmup ** (-1.5)))
 
+    def zero_grad(self):
+        self.optimizer.zero_grad()
+
     def save(self, path):
         all = {'opt_state': self.optimizer.state_dict(),
                'step': self._step, 'factor': self.factor, 'model_size': self.model_size, 'rate':self._rate}
