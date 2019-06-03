@@ -50,18 +50,22 @@ class BaseTrainer:
 
     def train_epoch(self):
         self.model.train()
-        for data in tqdm(self.train_iter, desc=f'Epoch {self.global_epoch}', ascii=True):
+        train_bar = tqdm(iterable=self.train_iter, leave=True, total=len(self.train_iter))
+        for data in train_bar:
             metrics, _ = self.model.iterate(data, optimizer=self.optimizer, is_train=True)
 
             if self.global_step % self.log_every_iter == 0 and self.global_step != 0:
                 self.summarize(metrics, 'train/')
+
             self.global_step += 1
             if self.global_step % self.eval_every_iter == 0 and self.global_step != 0:
                 self.evaluate(self.dev_iter, 'dev/')
 
             if self.global_step % self.save_every_iter == 0 and self.global_step != 0:
                 self.save_ckpt(metrics[self.reference[1:]])
-
+            desc = f'Train---epoch: {self.global_epoch}, step: {self.global_step} loss: {1}, cer: {1}'
+            train_bar.set_description(desc)
+        print(f'in train epoch:{self.global_epoch}, average_loss{1} average_score{1}')#TODO use true value
         self.save_ckpt(metrics[self.reference[1:]])
         self.evaluate(self.test_iter, 'test/')
 
@@ -101,9 +105,13 @@ class BaseTrainer:
         print(f'\nevaluating\n')
         self.model.eval()
         dev_metric_manager = MetricsManager()
+        dev_bar = tqdm(dev_iter, leave=True, total=len(dev_iter))
         for data in dev_iter:
             metrics, _ = self.model.iterate(data, is_train=False)
             dev_metric_manager.update(metrics)
+            desc = f'Valid---loss: {1}, cer: {1}'
+            dev_bar.set_description(desc)
+        print(f'\nValid, average_loss{1}, average_score{1}')#TODO use true value
         report = dev_metric_manager.report_cum()
         report = dev_metric_manager.extract(report)
         self.summarize(report, 'dev/')

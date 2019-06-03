@@ -28,6 +28,7 @@ class AiShell1(Dataset):
     def __len__(self):
         return len(self.datas)
 
+
 @dataclass
 class collat:
     """

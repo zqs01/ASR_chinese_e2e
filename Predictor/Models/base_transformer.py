@@ -67,7 +67,6 @@ class PositionalEncoding(t.nn.Module):
 
     def __init__(self, dim_model, max_length=2000):
         super(PositionalEncoding, self).__init__()
-
         pe = t.zeros(max_length, dim_model, requires_grad=False)
         position = t.arange(0, max_length).unsqueeze(1).float()
         exp_term = t.exp(t.arange(0, dim_model, 2).float() * -(math.log(10000.0) / dim_model))
@@ -84,7 +83,6 @@ class PositionalEncoding(t.nn.Module):
             tensor: B x T
         """
         return self.pe[:, :input.size(1)]
-
 
 
 class Encoder(t.nn.Module):
