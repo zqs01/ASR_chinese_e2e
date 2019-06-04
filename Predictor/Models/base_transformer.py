@@ -14,11 +14,21 @@ class Transformer(BaseModel):
         super(Transformer, self).__init__()
         self.config = config
         self.vocab = vocab
-        self.embedding = Embeder()
-        self.conv = Conv()
-        self.encoder = Encoder()
-        self.decoder = Decoder()
-        self.output = Output()
+        self.input_linear = t.nn.Sequential(
+            t.nn.Linear(config.n_mels, config.d_model),
+            t.nn.LayerNorm(config.d_model)
+        )
+        self.position_encoder = PositionalEncoding(config.d_model)
+        self.word_embeder = t.nn.Embedding(vocab.vocab_size, config.n_mels)
+        self.encoder = Encoder(input_size=config.d_model, hidden_size=config.hidden_size, ff_size=config.ff_size,
+                               num_head=config.num_head, dropout=config.dropout, layer_num=config.layer_num)
+        self.decoder = Decoder(input_size=config.d_model, hidden_size=config.hidden_size, ff_size=config.ff_size,
+                               num_head=config.num_head, dropout=config.dropout, layer_num=config.layer_num)
+        self.output = t.nn.Linear(config.d_model, vocab.vocab_size)
+        self.output.weight = self.word_embeder.weight
+
+    def encode(self, input):
+        pass
 
     def forward(self, *input):
         pass
@@ -33,7 +43,7 @@ class Transformer(BaseModel):
     def get_default_config(cls):
         @dataclass
         class ModelConfig(BaseConfig):
-            input_size = None
+            d_model = 256
             hidden_size = 128
             ff_size = 512
             num_head = 8
@@ -47,16 +57,6 @@ class Transformer(BaseModel):
         pass
 
     def beam_search(self):
-        pass
-
-
-class Embeder(t.nn.Module):
-    def __init__(self, vocab_size, embedding_dim):
-        super(Embeder, self).__init__()
-        self.word_embedding = t.nn.Embedding()
-        self.position_embeder = PositionalEncoding(embedding_dim)
-
-    def forward(self, feature):
         pass
 
 
@@ -166,6 +166,8 @@ class FeedForward(t.nn.Module):
             t.nn.Dropout(dropout),
             t.nn.Conv1d(hidden_size, input_size, 1),
         )
+        t.nn.init.xavier_normal_(self.linear[0].weight)
+        t.nn.init.xavier_normal_(self.linear[-1].weight)
 
     def forward(self, feature):
         net = feature.transpose(-1, -2)
@@ -183,6 +185,9 @@ class MultiHeadAttention(t.nn.Module):
         self.key_linear = t.nn.Linear(input_size, num_head * hidden_size)
         self.value_linear = t.nn.Linear(input_size, num_head * hidden_size)
         self.dot_attention = DotAttention(hidden_size, dropout)
+        t.nn.init.xavier_normal_(self.query_linear.weight)
+        t.nn.init.xavier_normal_(self.key_linear.weight)
+        t.nn.init.xavier_normal_(self.value_linear.weight)
 
     def reshape(self, tensor, batch_size, seq_length, num_head, hidden_size):
         # B, L, N*H
@@ -229,8 +234,3 @@ class DotAttention(t.nn.Module):
         output = t.bmm(attention, value)
         return output, attention
 
-
-class Masker:
-    """
-    class for those masks
-    """

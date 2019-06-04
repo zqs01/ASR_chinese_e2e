@@ -23,6 +23,7 @@ class TrainConfig(DataConfigAiShell1):
     save_every_iter: int = 5000
     reference = '-loss'
     from_ckpt = None
+    model_name = 'ExampleModel'
 
 
 def get_model_class(model_name):
@@ -33,10 +34,10 @@ def get_model_class(model_name):
 
 def train(**kwargs):
     print('\nStart training\n')
-    assert kwargs['model_name']
-    Model, ModelConfig = get_model_class(kwargs['model_name'])
-    model_config = ModelConfig()
     config = TrainConfig()
+    assert config.model_name
+    Model, ModelConfig = get_model_class(config.model_name)
+    model_config = ModelConfig()
     config.fn_combine(model_config)
     config.fn_build(kwargs)
     config.fn_show()

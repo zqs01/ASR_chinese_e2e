@@ -38,9 +38,9 @@ class Vocab:
         self._id2token = [i for i in self._token2id]
         print(f'total {len(self._token2id)} words in vocab')
 
-    def save(self, path:str):
+    def save(self, path: str)
         assert self._id2token is not None
-        all = (self._id2token, self._token2id)
+        all = (self._id2token, self._token2id, self.PAD, self.UNK, self.BOS, self.EOS)
         t.save(all, path)
         print(f'vocab saved in {path}')
 
@@ -50,6 +50,10 @@ class Vocab:
         all = t.load(path)
         obj._token2id = all[1]
         obj._id2token = all[0]
+        obj.PAD = all[2]
+        obj.UNK = all[3]
+        obj.BOS = all[4]
+        obj.EOS = all[5]
         print(f'vocab loaded from {path}')
         return obj
 
@@ -72,3 +76,6 @@ class Vocab:
             token = [self.BOS] + token + [self.EOS]
         return token
 
+    @property
+    def vocab_size(self):
+        return len(self._token2id)
