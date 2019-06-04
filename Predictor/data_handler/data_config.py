@@ -1,4 +1,4 @@
-from Predictor.Bases.base_config import BaseConfig
+from Predictor.Bases import BaseConfig
 from dataclasses import dataclass
 
 

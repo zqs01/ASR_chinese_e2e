@@ -1,14 +1,12 @@
-import torch as t
-from torch.utils.tensorboard import SummaryWriter
-import datetime
 import os
-import numpy as np
-from typing import Any
-from collections import defaultdict
 import shutil
+import datetime
+from typing import Any
 from tqdm.auto import tqdm
 from dataclasses import dataclass
-from .metric_manager import MetricsManager
+from torch.utils.tensorboard import SummaryWriter
+
+from Trainer import MetricsManager
 
 
 @dataclass
@@ -65,7 +63,7 @@ class BaseTrainer:
 
             if self.global_step % self.save_every_iter == 0 and self.global_step != 0:
                 self.save_ckpt(metrics[self.reference[1:]])
-            desc = f'Train---epoch: {self.global_epoch}, step: {self.global_step} loss: {1}, cer: {1}'
+            desc = f'Train-epoch: {self.global_epoch}, step: {self.global_step}, loss: {1}, cer: {1}'
             train_bar.set_description(desc)
         print(f'in train epoch:{self.global_epoch}, average_loss{1} average_score{1}')#TODO use true value
         self.save_ckpt(metrics[self.reference[1:]])
@@ -104,14 +102,14 @@ class BaseTrainer:
             self.summary_writer.add_scalar(tmp_prefix, pack[i].numpy(), self.global_step)
 
     def evaluate(self, dev_iter, prefix='dev/'):
-        print(f'\nEvaluating\n')
+        print(f'\nEvaluating')
         self.model.eval()
         dev_metric_manager = MetricsManager()
-        dev_bar = tqdm(dev_iter, leave=True, total=len(dev_iter))
+        dev_bar = tqdm(dev_iter, leave=True, total=len(dev_iter), disable=True)
         for data in dev_iter:
             metrics, _ = self.model.iterate(data, is_train=False)
             dev_metric_manager.update(metrics)
-            desc = f'Valid---loss: {1}, cer: {1}'
+            desc = f'Valid-loss: {1}, cer: {1}'
             dev_bar.set_description(desc)
         print(f'\nValid, average_loss: {1}, average_score: {1}')#TODO use true value
         report = dev_metric_manager.report_cum()

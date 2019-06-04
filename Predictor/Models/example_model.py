@@ -1,7 +1,7 @@
 import torch as t
-from Predictor.Bases.base_config import BaseConfig
-from Predictor.Bases.base_model import BaseModel
-from Predictor.Utils.pack import Pack
+from Predictor.Bases import BaseConfig
+from Predictor.Bases import BaseModel
+from Predictor.Utils import Pack
 from dataclasses import dataclass
 import os
 

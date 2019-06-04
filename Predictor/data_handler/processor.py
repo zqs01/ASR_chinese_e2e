@@ -1,19 +1,10 @@
 import torchaudio as ta
-from Predictor.data_handler.loader import load_wav
 import torch as t
-from Predictor.data_handler.augments import freq_mask
-from Predictor.data_handler.augments import time_mask
 
-#
-# def tfm_spectro(ad:Audio, sr=16000, to_db_scale=False, n_fft=1024,
-#                 ws=None, hop=None, f_min=0.0, f_max=-80, pad=0, n_mels=128):
-#     # We must reshape signal for torchaudio to generate the spectrogram.
-#     mel = ta.transforms.MelSpectrogram(sr=ad.sr, n_mels=n_mels, n_fft=n_fft, ws=ws, hop=hop,
-#                                     f_min=f_min, f_max=f_max, pad=pad,)(ad.sig.reshape(1, -1))
-#     mel = mel.permute(0,2,1) # swap dimension, mostly to look sane to a human.
-#     if to_db_scale: mel = ta.transforms.SpectrogramToDB(stype='magnitude', top_db=f_max)(mel)
-#     return mel
-#
+from Predictor.data_handler import load_wav
+from Predictor.data_handler import freq_mask
+from Predictor.data_handler import time_mask
+
 
 class AudioParser:
 

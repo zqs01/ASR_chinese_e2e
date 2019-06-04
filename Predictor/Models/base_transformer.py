@@ -1,12 +1,10 @@
+import math
 import torch as t
 import torch.nn.functional as F
-import math
 from dataclasses import dataclass
-from torch.nn import MultiheadAttention
-from torch.nn import LayerNorm
 
 from Predictor.Bases.base_model import BaseModel, BaseConfig
-from Predictor.Bases.base_modules import Masker
+from Predictor.data_handler import Masker
 
 
 class Transformer(BaseModel):

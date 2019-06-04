@@ -2,11 +2,11 @@ import fire
 import torch as t
 
 from Predictor import Models
-from Predictor.data_handler.vocab import Vocab
-from Predictor.data_handler.data_config import DataConfigAiShell1
+from Predictor.data_handler import Vocab
+from Predictor.data_handler import DataConfigAiShell1
 from data.data_loader.ai_shell_1 import build_dataloader
-from Trainer.base_trainer import BaseTrainer
-from Trainer.optimizer import NoamOpt
+from Trainer import BaseTrainer
+from Trainer import NoamOpt
 
 
 

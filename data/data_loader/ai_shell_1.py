@@ -2,17 +2,11 @@ import json
 import torch as t
 from dataclasses import dataclass
 from tqdm import tqdm
-import os
 from torch.utils.data import Dataset, DataLoader
 
-from Predictor.data_handler.vocab import Vocab
-from Predictor.data_handler.processor import AudioParser
-from Predictor.data_handler.padder import Padder
+from Predictor.data_handler import AudioParser
+from Predictor.data_handler import Padder
 from Predictor.Utils import Pack
-
-
-
-padder = Padder()
 
 
 class AiShell1(Dataset):

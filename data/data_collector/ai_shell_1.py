@@ -1,9 +1,9 @@
-from dataclasses import dataclass
-import torch as t
-from Predictor.data_handler.vocab import Vocab
 import os
-from tqdm import tqdm
 import json
+from tqdm import tqdm
+from dataclasses import dataclass
+
+from Predictor.data_handler import Vocab
 
 
 @dataclass
