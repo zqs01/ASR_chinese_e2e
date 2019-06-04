@@ -38,7 +38,7 @@ class Vocab:
         self._id2token = [i for i in self._token2id]
         print(f'total {len(self._token2id)} words in vocab')
 
-    def save(self, path: str)
+    def save(self, path: str):
         assert self._id2token is not None
         all = (self._id2token, self._token2id, self.PAD, self.UNK, self.BOS, self.EOS)
         t.save(all, path)
