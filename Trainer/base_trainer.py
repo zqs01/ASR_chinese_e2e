@@ -1,6 +1,6 @@
 import torch as t
 from torch.utils.tensorboard import SummaryWriter
-import time
+import datetime
 import os
 import numpy as np
 from typing import Any
@@ -19,7 +19,7 @@ class BaseTrainer:
     dev_iter: Any
     test_iter: Any
     ckpt_root: str = 'ckpt/'
-    exp_name: str = 'base_exp/'
+    exp_name: str = 'base_exp'
     log_every_iter: int = 100
     eval_every_iter: int = 1000
     save_every_iter: int = 5000
@@ -27,6 +27,8 @@ class BaseTrainer:
     reference = '-loss'
 
     def __post_init__(self):
+        if self.exp_name is None:
+            self.exp_name = self.get_time()
         self.exp_root = os.path.join(self.ckpt_root, self.exp_name)
         #print(f'exps: {os.listdir(self.ckpt_root)})')
         self.global_step = 0
@@ -102,7 +104,7 @@ class BaseTrainer:
             self.summary_writer.add_scalar(tmp_prefix, pack[i].numpy(), self.global_step)
 
     def evaluate(self, dev_iter, prefix='dev/'):
-        print(f'\nevaluating\n')
+        print(f'\nEvaluating\n')
         self.model.eval()
         dev_metric_manager = MetricsManager()
         dev_bar = tqdm(dev_iter, leave=True, total=len(dev_iter))
@@ -118,5 +120,5 @@ class BaseTrainer:
         self.model.train()
 
     def get_time(self):
-        return time.strftime('%Y%m%d_%H%M', time.localtime(time.time()))
+        return (datetime.datetime.now() + datetime.timedelta(hours=8)).strftime("%Y%m%d_%H%M")
 

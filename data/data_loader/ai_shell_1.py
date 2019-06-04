@@ -64,11 +64,10 @@ class collat:
         return pack
 
 
-def build_dataloader(collector_path, vocab_path, batch_size, part='test', use_cuda=True,
+def build_dataloader(collector_path,vocab, batch_size, part='test', use_cuda=True,
                      sample_rate=16000, window_size=400, n_mels=40, augment=False, predump=True, use_old=True):
     with open(collector_path + '_' + part + '.json') as reader:
         datas = reader.readlines()
-    vocab = Vocab.load(vocab_path)
     data_set = AiShell1(datas, vocab, sample_rate=sample_rate, window_size=window_size, n_mels=n_mels, augment=augment,
                         use_old=use_old)
     if predump:
@@ -76,6 +75,6 @@ def build_dataloader(collector_path, vocab_path, batch_size, part='test', use_cu
         data_set.pre_dump_features()
         data_set.use_old = True
     data_loader = DataLoader(data_set, batch_size, collate_fn=collat(use_cuda))
-    return data_loader, vocab
+    return data_loader
 
 

@@ -2,10 +2,12 @@ import fire
 import torch as t
 
 from Predictor import Models
+from Predictor.data_handler.vocab import Vocab
 from Predictor.data_handler.data_config import DataConfigAiShell1
 from data.data_loader.ai_shell_1 import build_dataloader
 from Trainer.base_trainer import BaseTrainer
 from Trainer.optimizer import NoamOpt
+
 
 
 class TrainConfig(DataConfigAiShell1):
@@ -15,7 +17,7 @@ class TrainConfig(DataConfigAiShell1):
     num_epoch = 1
     warm_up = 4000
     device_id = (0, 1)
-    exp_name = 'test3'
+    exp_name = None
     drop_exp = True
     ckpt_root: str = 'ckpt/'
     log_every_iter: int = 100
@@ -43,17 +45,17 @@ def train(**kwargs):
     config.fn_combine(model_config)
     config.fn_build(kwargs)
     config.fn_show()
-
-    train_iter, vocab = build_dataloader(
-        collector_path=config.collector_path, vocab_path=config.vocab_path, batch_size=config.batch_size, part='train',
+    vocab = Vocab.load(config.vocab_path)
+    train_iter = build_dataloader(
+        collector_path=config.collector_path, vocab=vocab, batch_size=config.batch_size, part='train',
         sample_rate=config.sample_rate, window_size=config.window_size, n_mels=config.n_mels, augment=config.augment,
         predump=config.predump, use_old=config.use_old)
-    test_iter, _ = build_dataloader(
-        collector_path=config.collector_path, vocab_path=config.vocab_path, batch_size=config.eval_batch_size, part='test',
+    test_iter = build_dataloader(
+        collector_path=config.collector_path, vocab=vocab, batch_size=config.eval_batch_size, part='test',
         sample_rate=config.sample_rate, window_size=config.window_size, n_mels=config.n_mels, augment=False,
         predump=config.predump, use_old=config.use_old)
-    dev_iter, _ = build_dataloader(
-        collector_path=config.collector_path, vocab_path=config.vocab_path, batch_size=config.eval_batch_size, part='dev',
+    dev_iter = build_dataloader(
+        collector_path=config.collector_path, vocab=vocab, batch_size=config.eval_batch_size, part='dev',
         sample_rate=config.sample_rate, window_size=config.window_size, n_mels=config.n_mels, augment=False,
         predump=config.predump, use_old=config.use_old)
 
@@ -78,4 +80,4 @@ def train(**kwargs):
 
 if __name__ == '__main__':
 
-    fire.Fire(train, '--lr=1 --model_name="ExampleModel" --batch_size=32 --exp_name="test4" --drop_exp=False')
+    fire.Fire(train, '--lr=1 --model_name="ExampleModel" --batch_size=32 --drop_exp=False --predump=False')

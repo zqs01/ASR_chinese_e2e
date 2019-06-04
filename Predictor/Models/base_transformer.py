@@ -19,7 +19,7 @@ class Transformer(BaseModel):
             t.nn.LayerNorm(config.d_model)
         )
         self.position_encoder = PositionalEncoding(config.d_model)
-        self.word_embeder = t.nn.Embedding(vocab.vocab_size, config.n_mels)
+        self.word_embeder = t.nn.Embedding(vocab.vocab_size, config.d_model)
         self.encoder = Encoder(input_size=config.d_model, hidden_size=config.hidden_size, ff_size=config.ff_size,
                                num_head=config.num_head, dropout=config.dropout, layer_num=config.layer_num)
         self.decoder = Decoder(input_size=config.d_model, hidden_size=config.hidden_size, ff_size=config.ff_size,
