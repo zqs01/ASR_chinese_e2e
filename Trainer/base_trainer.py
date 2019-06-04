@@ -111,7 +111,7 @@ class BaseTrainer:
             dev_metric_manager.update(metrics)
             desc = f'Valid---loss: {1}, cer: {1}'
             dev_bar.set_description(desc)
-        print(f'\nValid, average_loss{1}, average_score{1}')#TODO use true value
+        print(f'\nValid, average_loss: {1}, average_score: {1}')#TODO use true value
         report = dev_metric_manager.report_cum()
         report = dev_metric_manager.extract(report)
         self.summarize(report, 'dev/')

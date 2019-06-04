@@ -1,32 +1,49 @@
+import json
 import torch as t
+from dataclasses import dataclass
+from tqdm import tqdm
+import os
 from torch.utils.data import Dataset, DataLoader
+
 from Predictor.data_handler.vocab import Vocab
 from Predictor.data_handler.processor import AudioParser
 from Predictor.data_handler.padder import Padder
 from Predictor.Utils import Pack
-import json
-from dataclasses import dataclass
+
 
 
 padder = Padder()
 
 
 class AiShell1(Dataset):
-    def __init__(self, datas, vocab, sample_rate=16000, window_size=400, n_mels=40, augment=False):
+    def __init__(self, datas, vocab, sample_rate=16000, window_size=400, n_mels=40, augment=False, use_old=False):
         super(AiShell1, self).__init__()
         self.datas = datas
         self.vocab = vocab
         self.parser = AudioParser(sr=sample_rate, n_mels=n_mels, n_fft=window_size)
         self.augment = augment
+        self.use_old = use_old
 
     def __getitem__(self, item):
         line = json.loads(self.datas[item])
-        tgt = self.vocab.convert_str(line['tgt'])
-        wave = self.parser.parse(line['wave'], augment=self.augment)
-        return wave, tgt
+
+        if self.use_old:
+            file = line['wave'].split('.')[0] + '.t'
+            wave, tgt = t.load(file)
+            return wave, tgt, line
+        else:
+            tgt = self.vocab.convert_str(line['tgt'])
+            wave = self.parser.parse(line['wave'], augment=self.augment)
+            return wave, tgt, line
 
     def __len__(self):
         return len(self.datas)
+
+    def pre_dump_features(self):
+        for i in tqdm(self, desc='pre dumping features'):
+            wave, tgt, line = i
+            file = line['wave'].split('.')[0] + '.t'
+            t.save((wave, tgt), file)
 
 
 @dataclass
@@ -48,11 +65,16 @@ class collat:
 
 
 def build_dataloader(collector_path, vocab_path, batch_size, part='test', use_cuda=True,
-                     sample_rate=16000, window_size=400, n_mels=40, augment=False):
+                     sample_rate=16000, window_size=400, n_mels=40, augment=False, predump=True, use_old=True):
     with open(collector_path + '_' + part + '.json') as reader:
         datas = reader.readlines()
     vocab = Vocab.load(vocab_path)
-    data_set = AiShell1(datas, vocab, sample_rate=sample_rate, window_size=window_size, n_mels=n_mels, augment=augment)
+    data_set = AiShell1(datas, vocab, sample_rate=sample_rate, window_size=window_size, n_mels=n_mels, augment=augment,
+                        use_old=use_old)
+    if predump:
+        data_set.use_old = False
+        data_set.pre_dump_features()
+        data_set.use_old = True
     data_loader = DataLoader(data_set, batch_size, collate_fn=collat(use_cuda))
     return data_loader, vocab
 

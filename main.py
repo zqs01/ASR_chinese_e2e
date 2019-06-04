@@ -24,6 +24,8 @@ class TrainConfig(DataConfigAiShell1):
     reference = '-loss'
     from_ckpt = None
     model_name = 'ExampleModel'
+    predump = True ## pre dump feature when build data sets
+    use_old = True ## use dumped feature when data loader
 
 
 def get_model_class(model_name):
@@ -44,16 +46,19 @@ def train(**kwargs):
 
     train_iter, vocab = build_dataloader(
         collector_path=config.collector_path, vocab_path=config.vocab_path, batch_size=config.batch_size, part='train',
-        sample_rate=config.sample_rate, window_size=config.window_size, n_mels=config.n_mels, augment=config.augment)
+        sample_rate=config.sample_rate, window_size=config.window_size, n_mels=config.n_mels, augment=config.augment,
+        predump=config.predump, use_old=config.use_old)
     test_iter, _ = build_dataloader(
         collector_path=config.collector_path, vocab_path=config.vocab_path, batch_size=config.eval_batch_size, part='test',
-        sample_rate=config.sample_rate, window_size=config.window_size, n_mels=config.n_mels, augment=False)
+        sample_rate=config.sample_rate, window_size=config.window_size, n_mels=config.n_mels, augment=False,
+        predump=config.predump, use_old=config.use_old)
     dev_iter, _ = build_dataloader(
         collector_path=config.collector_path, vocab_path=config.vocab_path, batch_size=config.eval_batch_size, part='dev',
-        sample_rate=config.sample_rate, window_size=config.window_size, n_mels=config.n_mels, augment=False
-    )
+        sample_rate=config.sample_rate, window_size=config.window_size, n_mels=config.n_mels, augment=False,
+        predump=config.predump, use_old=config.use_old)
 
     model = Model(config, vocab)
+    model = model.wrap()
     optimizer = t.optim.Adam(model.parameters(), lr=config.lr)
     assert config.hidden_size
     optimizer = NoamOpt(config.hidden_size, 1, config.warm_up, optimizer)
