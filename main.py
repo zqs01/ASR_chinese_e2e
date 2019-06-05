@@ -24,7 +24,7 @@ class TrainConfig(DataConfigAiShell1):
     eval_every_iter: int = 20000
     save_every_iter: int = 5000
     reference = '-loss'
-    from_ckpt = None
+    from_ckpt = None # TODO not implemented !
     model_name = 'ExampleModel'
     predump = True ## pre dump feature when build data sets
     use_old = True ## use dumped feature when data loader
@@ -34,6 +34,17 @@ def get_model_class(model_name):
     Model = getattr(Models, model_name)
     ModelConfig = Model.get_default_config()
     return Model, ModelConfig
+
+
+def show_configs(**kwargs):
+    print('\nStart training\n')
+    config = TrainConfig()
+    assert config.model_name
+    Model, ModelConfig = get_model_class(config.model_name)
+    model_config = ModelConfig()
+    config.fn_combine(model_config)
+    config.fn_build(kwargs)
+    config.fn_show()
 
 
 def train(**kwargs):
@@ -79,5 +90,5 @@ def train(**kwargs):
 
 
 if __name__ == '__main__':
-
+    #fire.Fire(show_configs)
     fire.Fire(train, '--lr=1 --model_name="ExampleModel" --batch_size=32 --drop_exp=False --predump=False')

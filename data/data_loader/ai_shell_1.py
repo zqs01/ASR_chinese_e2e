@@ -10,11 +10,23 @@ from Predictor.Utils import Pack
 
 
 class AiShell1(Dataset):
+    """
+    parser paras, some is not implemented
+        sample_rate: int = 16000
+        n_mels: int = 40
+        window_size: int = 400
+        hop: int = None
+        f_min: int = 0
+        f_max: int = None
+        pad: int = 0
+    """
     def __init__(self, datas, vocab, sample_rate=16000, window_size=400, n_mels=40, augment=False, use_old=False):
         super(AiShell1, self).__init__()
         self.datas = datas
         self.vocab = vocab
-        self.parser = AudioParser(sr=sample_rate, n_mels=n_mels, n_fft=window_size)
+
+        self.parser = AudioParser(
+            sample_rate=sample_rate, n_mels=n_mels, window_size=window_size)
         self.augment = augment
         self.use_old = use_old
 

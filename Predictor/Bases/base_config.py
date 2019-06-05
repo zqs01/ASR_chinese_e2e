@@ -26,7 +26,7 @@ class BaseConfig:
         print('\nconfigs: ')
         for att in self.__dir__():
             if not att.startswith('_') and not att.startswith('__') and not att.startswith('fn_'):
-                print(f'\t{att}:\t{getattr(self, att)}')
+                print(f'\t{att}:\t\t{getattr(self, att)}')
         print('\n')
 
     def fn_get_attrs(self):
