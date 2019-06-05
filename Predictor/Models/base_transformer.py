@@ -3,9 +3,21 @@ import torch as t
 import torch.nn.functional as F
 from dataclasses import dataclass
 
-from Predictor.Bases.base_model import BaseModel, BaseConfig
+from Predictor.Bases import BaseModel
+from Predictor.Bases import BaseConfig
 from Predictor.data_handler import Masker
 
+
+
+"""
+        pack = Pack()
+        wave = [i[0] for i in batch]
+        tgt = [i[1] for i in batch]
+        wave, wave_len = Padder.pad_tri(wave, 0)
+        tgt, tgt_len = Padder.pad_two(tgt, 0)
+        pack.add(wave=wave, tgt=tgt.long(), wave_len=wave_len, tgt_len=tgt_len)
+        return pack
+"""
 
 class Transformer(BaseModel):
     def __init__(self, config, vocab):
@@ -22,22 +34,10 @@ class Transformer(BaseModel):
                                num_head=config.num_head, dropout=config.dropout, layer_num=config.layer_num)
         self.decoder = Decoder(input_size=config.d_model, hidden_size=config.hidden_size, ff_size=config.ff_size,
                                num_head=config.num_head, dropout=config.dropout, layer_num=config.layer_num)
-        self.output = t.nn.Linear(config.d_model, vocab.vocab_size)
-        self.output.weight = self.word_embeder.weight
+        self.output_linear = t.nn.Linear(config.d_model, vocab.vocab_size)
+        self.output_linear.weight = self.word_embeder.weight
 
-    def encode(self, input):
-        pass
-
-    def forward(self, *input):
-        pass
-
-    def cal_metrics(self, *inputs):
-        pass
-
-    def iterate(self, *inputs):
-        pass
-
-    @classmethod
+    @staticmethod
     def get_default_config(cls):
         @dataclass
         class ModelConfig(BaseConfig):
@@ -50,6 +50,49 @@ class Transformer(BaseModel):
 
         return ModelConfig
 
+    def encode_wave(self, inputs):
+        wave, wave_len = inputs.wave, inputs.wave_len
+        ## wave : B, L , n_mels
+        wave = self.input_linear(wave)
+        ## wave : B, L, d_model
+        wave = wave + self.position_encoder(wave)
+        # build masks
+        pad_mask = Masker.get_pad_mask(wave, wave_len)
+        self_attention_mask = Masker.get_attn_pad_mask(pad_mask, pad_mask.size(1))
+        wave_feature_encoded = self.encoder(wave, pad_mask, self_attention_mask)
+        return wave_feature_encoded
+
+    def build_text(self, inputs):
+        text, text_len = inputs.tgt, inputs.tgt_len
+        text_feature = self.word_embeder(text)
+        text_feature = text_feature + self.position_encoder(text_feature)
+        # build mask
+        text_pad_mask = Masker.get_pad_mask(text_len)
+        text_self_attention_mask = Masker.get_attn_pad_mask(text_pad_mask, text_pad_mask.size(1))
+        text_subsquence_mask = Masker.get_subsequent_mask(text)
+        text_self_attention_mask = text_self_attention_mask * text_subsquence_mask
+        return text_feature, text_pad_mask, text_self_attention_mask
+
+    def encode(self, input):
+        pass
+
+    def forward(self, input):
+        # teacher forcing training
+        wave_feature_encoded = self.encode_wave(input)
+        text_feature, text_pad_mask, text_self_attention_mask = self.build_text(input)
+        # build mask
+        dot_attention_mask = Masker.get_attn_key_pad_mask(inputs.text, inputs.wave)
+        ## decoder(dec_feature, o_feature, dec_pad_mask, dec_self_attention_mask, dot_attention_mask)
+        output = self.decoder(text_feature, wave_feature_encoded, text_pad_mask, text_self_attention_mask, dot_attention_mask)
+        output = self.output_linear(output)
+        return output
+
+    def cal_metrics(self, *inputs):
+        pass
+
+    def iterate(self, input):
+        output = self.forward(input)
+        return output
 
     def greedy_search(self):
         pass
@@ -86,13 +129,13 @@ class PositionalEncoding(t.nn.Module):
 class Encoder(t.nn.Module):
     def __init__(self, input_size, hidden_size, ff_size, num_head, dropout, layer_num):
         super(Encoder, self).__init__()
-        self.layer_list = t.nn.Sequential([
+        self.layer_list = t.nn.ModuleList(
             EncoderLayer(input_size, hidden_size, ff_size, num_head, dropout) for _ in range(layer_num)
-        ])
+        )
 
     def forward(self, feature, pad_mask, self_attention_mask):
         for layer in self.layer_list:
-            feature = layer(feature)
+            feature = layer(feature, pad_mask, self_attention_mask)
         return feature
 
 
@@ -101,12 +144,13 @@ class EncoderLayer(t.nn.Module):
         super(EncoderLayer, self).__init__()
         self.self_attention = MultiHeadAttention(input_size, hidden_size, dropout, num_head)
         self.dropout1 = t.nn.Dropout(dropout)
-        self.layer_norm1 = t.nn.LayerNorm(hidden_size)
+        self.layer_norm1 = t.nn.LayerNorm(input_size)
         self.feed_forward = FeedForward(input_size, ff_size, dropout)
         self.dropout2 = t.nn.Dropout(dropout)
-        self.layer_norm2 = t.nn.LayerNorm(hidden_size)
+        self.layer_norm2 = t.nn.LayerNorm(input_size)
 
     def forward(self, feature, pad_mask, self_attention_mask):
+        pad_mask = pad_mask.unsqueeze(-1)
         feature_ = self.self_attention(feature, feature, feature, self_attention_mask)
         feature = self.layer_norm1(self.dropout1(feature_) + feature)
         feature = feature * pad_mask
@@ -119,7 +163,7 @@ class EncoderLayer(t.nn.Module):
 class Decoder(t.nn.Module):
     def __init__(self, input_size, hidden_size, ff_size, num_head, dropout, layer_num):
         super(Decoder, self).__init__()
-        self.layer_list = t.nn.Sequential([
+        self.layer_list = t.nn.ModuleList([
             DecoderLayer(input_size, hidden_size, ff_size, num_head, dropout) for _ in range(layer_num)
         ])
 
@@ -134,15 +178,16 @@ class DecoderLayer(t.nn.Module):
         super(DecoderLayer, self).__init__()
         self.self_attnention = MultiHeadAttention(input_size, hidden_size, dropout, num_head)
         self.dropout1 = t.nn.Dropout(dropout)
-        self.layer_norm1 = t.nn.LayerNorm(hidden_size)
+        self.layer_norm1 = t.nn.LayerNorm(input_size)
         self.dot_attention = MultiHeadAttention(input_size, hidden_size, dropout, num_head)
         self.dropout2 = t.nn.Dropout(dropout)
-        self.layer_norm2 = t.nn.LayerNorm(hidden_size)
+        self.layer_norm2 = t.nn.LayerNorm(input_size)
         self.feed_forward = FeedForward(input_size, ff_size, dropout)
         self.dropout3 = t.nn.Dropout(dropout)
-        self.layer_norm3 = t.nn.LayerNorm(hidden_size)
+        self.layer_norm3 = t.nn.LayerNorm(input_size)
 
     def forward(self, feature, encoder_output, pad_mask, self_attention_mask, dot_attention_mask):
+        pad_mask = pad_mask.unsqueeze(-1)
         feature_ = self.self_attnention(feature, feature, feature, self_attention_mask)
         feature = self.layer_norm1(self.dropout1(feature_) + feature)
         feature = feature * pad_mask
@@ -183,9 +228,11 @@ class MultiHeadAttention(t.nn.Module):
         self.key_linear = t.nn.Linear(input_size, num_head * hidden_size)
         self.value_linear = t.nn.Linear(input_size, num_head * hidden_size)
         self.dot_attention = DotAttention(hidden_size, dropout)
+        self.output_linear = t.nn.Linear(num_head * hidden_size, input_size)
         t.nn.init.xavier_normal_(self.query_linear.weight)
         t.nn.init.xavier_normal_(self.key_linear.weight)
         t.nn.init.xavier_normal_(self.value_linear.weight)
+        t.nn.init.xavier_normal_(self.output_linear.weight)
 
     def reshape(self, tensor, batch_size, seq_length, num_head, hidden_size):
         # B, L, N*H
@@ -212,6 +259,7 @@ class MultiHeadAttention(t.nn.Module):
         output, _ = self.dot_attention(query_, key_, value_, attention_mask)
         output = output.view(self.num_head, batch_size, query_length, -1)
         output = output.permute(1, 2, 0, 3).contiguous().view(batch_size, query_length, -1)
+        output = self.output_linear(output)
         return output
 
 
@@ -232,3 +280,53 @@ class DotAttention(t.nn.Module):
         output = t.bmm(attention, value)
         return output, attention
 
+if __name__ == '__main__':
+    d_model = 5
+    hidden_size = 512
+    num_head = 8
+    dropout = 0.1
+    layer_num = 6
+    ff_size = 512
+
+    embedding = t.nn.Embedding(300, 5)
+
+
+    #
+    inputs = t.Tensor([[2, 5, 0]]).long()
+    inputs2 = t.Tensor([[2,4,5,7,0]]).long()
+
+
+    enc_feature = embedding(inputs)
+    dec_feature = embedding(inputs2)
+    print(inputs.shape)
+    from Predictor.data_handler import Masker
+    print(Masker.get_pad_mask(inputs, pad_idx=0))
+    print(Masker.get_attn_key_pad_mask(inputs, inputs, 0))
+    print(Masker.get_subsequent_mask(inputs))
+    print(Masker.get_attn_pad_mask(Masker.get_pad_mask(inputs, pad_idx=0), expand_length=3))
+
+
+    query = inputs
+    key = inputs2
+    pad_mask = Masker.get_pad_mask(query)
+    self_attention_mask = Masker.get_attn_pad_mask(pad_mask, pad_mask.size(1))
+    print(pad_mask.shape)
+    print(self_attention_mask.shape)
+
+    encoder = Encoder(
+        num_head=num_head, dropout=dropout, layer_num=layer_num, hidden_size=hidden_size, input_size=d_model,
+        ff_size=ff_size)
+
+    print(encoder(enc_feature, pad_mask, self_attention_mask))
+    o_feature = encoder(enc_feature, pad_mask, self_attention_mask)
+    decoder = Decoder(num_head=num_head, dropout=dropout, layer_num=layer_num, hidden_size=hidden_size, input_size=d_model,
+        ff_size=ff_size)
+
+    dec_pad_mask = Masker.get_pad_mask(inputs2)
+    dot_attention_mask = Masker.get_attn_key_pad_mask(inputs, inputs2)
+    dec_self_attention_mask = Masker.get_attn_pad_mask(dec_pad_mask, dec_pad_mask.size(1))
+    # feature, encoder_output, pad_mask, self_attention_mask, dot_attention_mask
+    print(decoder(dec_feature, o_feature, dec_pad_mask, dec_self_attention_mask, dot_attention_mask))
+    print(inputs)
+    print(inputs2)
+    print(decoder(dec_feature, o_feature, dec_pad_mask, dec_self_attention_mask, dot_attention_mask).shape)

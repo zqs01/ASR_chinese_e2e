@@ -50,6 +50,7 @@ def show_configs(**kwargs):
 def train(**kwargs):
     print('\nStart training\n')
     config = TrainConfig()
+    config.fn_build(kwargs)
     assert config.model_name
     Model, ModelConfig = get_model_class(config.model_name)
     model_config = ModelConfig()
@@ -91,4 +92,4 @@ def train(**kwargs):
 
 if __name__ == '__main__':
     #fire.Fire(show_configs)
-    fire.Fire(train, '--lr=1 --model_name="ExampleModel" --batch_size=32 --drop_exp=False --predump=False')
+    fire.Fire(train, '--lr=1 --model_name="Transformer" --batch_size=32 --drop_exp=False --predump=False')
