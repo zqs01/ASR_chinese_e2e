@@ -1,2 +1,2 @@
 from .example_model import ExampleModel
-from .transformer import Transformer
+from .base_transformer import Transformer

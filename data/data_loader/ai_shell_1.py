@@ -66,7 +66,9 @@ class collat:
         tgt = [i[1] for i in batch]
         wave, wave_len = Padder.pad_tri(wave, 0)
         tgt, tgt_len = Padder.pad_two(tgt, 0)
-        pack.add(wave=wave, tgt=tgt.long(), wave_len=wave_len, tgt_len=tgt_len)
+        pack.add(wave=wave, tgt=tgt.long(), wave_len=t.Tensor(wave_len).long(), tgt_len=t.Tensor(tgt_len).long())
+        if self.use_cuda:
+            pack = pack.cuda()
         return pack
 
 

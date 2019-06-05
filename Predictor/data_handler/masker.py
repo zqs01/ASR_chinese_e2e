@@ -14,7 +14,7 @@ class Masker:
         if input_lengths is not None:
             # padded_input: N x T x ..
             N = padded_input.size(0)
-            pad_mask = padded_input.new_ones(padded_input.size()[:-1])  # B x T
+            pad_mask = padded_input.new_ones(padded_input.size())  # B x T
             for i in range(N):
                 pad_mask[i, input_lengths[i]:] = 0
         if pad_idx is not None:

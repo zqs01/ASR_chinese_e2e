@@ -9,7 +9,7 @@ from Predictor.Bases.base_config import BaseConfig
 class Wrapper(t.nn.Module):
     def __init__(self, model, device_ids: list):
         super(Wrapper, self).__init__()
-        self.model = DataParallel(model, device_ids).cuda()
+        self.model = DataParallel(model.cuda(), device_ids)
 
     def forward(self, *input):
         return self.model.forward(*input)
