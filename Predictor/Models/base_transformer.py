@@ -2,6 +2,7 @@ import math
 import torch as t
 from dataclasses import dataclass
 
+from Predictor.Utils import Pack
 from Predictor.Bases import BaseModel
 from Predictor.Bases import BaseConfig
 from Predictor.data_handler import Masker
@@ -42,8 +43,11 @@ class Transformer(BaseModel):
         wave_pad_mask = Masker.get_pad_mask(wave.sum(-1), wave_len)
         wave_self_attention_mask = Masker.get_attn_pad_mask(wave_pad_mask, wave_pad_mask.size(1))
         text_pad_mask = Masker.get_pad_mask(text, text_len)
-        text_self_attention_mask
-        dot_attention_mask
+        text_self_attention_mask = Masker.get_attn_pad_mask(text_pad_mask, text_pad_mask.size(1))
+        text_subsquence_mask = Masker.get_subsequent_mask(text)
+        text_self_attention_mask = text_self_attention_mask.byte() * text_subsquence_mask
+        dot_attention_mask = Masker.get_attn_key_pad_mask(wave_pad_mask, input.tgt)
+
 
         wave_feature = self.input_linear(wave)
         wave_feature = wave_feature + self.position_encoder(wave_feature)
@@ -56,51 +60,20 @@ class Transformer(BaseModel):
         output = self.output_linear(output)
         return output
 
-    def encode_wave(self, inputs):
-        wave, wave_len = inputs.wave, inputs.wave_len
-        ## wave : B, L , n_mels
-        wave = self.input_linear(wave)
-        ## wave : B, L, d_model
-        wave = wave + self.position_encoder(wave)
-        # build masks
-        pad_mask = Masker.get_pad_mask(wave.sum(-1), wave_len)
-        self_attention_mask = Masker.get_attn_pad_mask(pad_mask, pad_mask.size(1))
-        wave_feature_encoded = self.encoder(wave, pad_mask, self_attention_mask)
-        return wave_feature_encoded, pad_mask
-
-    def build_text(self, inputs):
-        text, text_len = inputs.tgt, inputs.tgt_len
-        text_feature = self.word_embeder(text) * self.x_logit_scale
-        text_feature = text_feature + self.position_encoder(text_feature)
-        # build mask
-        text_pad_mask = Masker.get_pad_mask(text, text_len)
-        text_self_attention_mask = Masker.get_attn_pad_mask(text_pad_mask, text_pad_mask.size(1))
-        text_subsquence_mask = Masker.get_subsequent_mask(text)
-        text_self_attention_mask = text_self_attention_mask.byte() * text_subsquence_mask
-        return text_feature, text_pad_mask, text_self_attention_mask
-
-    def encode(self, input):
-        pass
-
-    def forward(self, input):
-        # teacher forcing training
-        wave_feature_encoded, wave_pad_mask = self.encode_wave(input)
-        text_feature, text_pad_mask, text_self_attention_mask = self.build_text(input)
-        # build mask
-        dot_attention_mask = Masker.get_attn_key_pad_mask(wave_pad_mask, input.tgt)
-
-        output = self.decoder(text_feature, wave_feature_encoded, text_pad_mask, text_self_attention_mask, dot_attention_mask)
-        output = self.output_linear(output)
-        return output
-
-    def cal_metrics(self, inputs):
-        pass
+    def cal_metrics(self, output, input):
+        output_id = output.topk(1)[1].squeeze(-1)
+        pack = Pack()
+        loss = calculate_loss(output, input.tgt)
+        assert not t.isinf(loss)
+        score = calculate_cer(output_id, input.tgt)
+        pack.add(loss=loss, score=score)
+        return pack
 
     def iterate(self, input, optimizer=None, is_train=True):
         output = self.forward(input)
-        metrics = self.cal_metrics(output)
+        metrics = self.cal_metrics(output, input)
 
-        return output
+        return metrics
 
     def greedy_search(self):
         pass

@@ -65,7 +65,7 @@ class Vocab:
         return id
 
     def convert_token(self, token: list):
-        id = [self._token2id.get(i, self._token2id['<UNK>']) for i in token]
+        id = [self._token2id.get(i, self._token2id[self.UNK]) for i in token]
         return id
 
     def convert_id(self, id: list, use_label: bool = True):
