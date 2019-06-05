@@ -9,8 +9,6 @@ from Predictor.data_handler import Masker
 from Predictor.Utils.loss import calculate_loss
 from Predictor.Utils.score import calculate_cer
 
-
-
 """
         pack = Pack()
         wave = [i[0] for i in batch]
@@ -35,27 +33,25 @@ class Transformer(BaseModel):
                                num_head=config.num_head, dropout=config.dropout, layer_num=config.layer_num)
         self.output_linear = t.nn.Linear(config.d_model, vocab.vocab_size)
         self.output_linear.weight = self.word_embeder.weight
-        self.x_logit_scale = (config.d_model ** -0.5)
+        self.x_logit_scale = config.d_model ** -0.5
 
     def forward(self, input):
-        wave, wave_len, text, text_len = input.wave, input.wave_len, input.tgt, input.tgt_len
+        wave, wave_len, text_for_input, text_len = input.wave, input.wave_len, input.tgt_for_input, input.tgt_len
         # build masks
         wave_pad_mask = Masker.get_pad_mask(wave.sum(-1), wave_len)
         wave_self_attention_mask = Masker.get_attn_pad_mask(wave_pad_mask, wave_pad_mask.size(1))
-        text_pad_mask = Masker.get_pad_mask(text, text_len)
+        text_pad_mask = Masker.get_pad_mask(text_for_input, text_len)
         text_self_attention_mask = Masker.get_attn_pad_mask(text_pad_mask, text_pad_mask.size(1))
-        text_subsquence_mask = Masker.get_subsequent_mask(text)
+        text_subsquence_mask = Masker.get_subsequent_mask(text_for_input)
         text_self_attention_mask = text_self_attention_mask.byte() * text_subsquence_mask
-        dot_attention_mask = Masker.get_attn_key_pad_mask(wave_pad_mask, input.tgt)
-
+        dot_attention_mask = Masker.get_attn_key_pad_mask(wave_pad_mask, input.tgt_for_input)
 
         wave_feature = self.input_linear(wave)
         wave_feature = wave_feature + self.position_encoder(wave_feature)
         wave_feature = self.encoder(wave_feature, wave_pad_mask, wave_self_attention_mask)
 
-        text_feature = self.word_embeder(text) * self.x_logit_scale
+        text_feature = self.word_embeder(text_for_input) * self.x_logit_scale
         text_feature = text_feature + self.position_encoder(text_feature)
-        #feature, encoder_output, pad_mask, self_attention_mask, dot_attention_mask
         output = self.decoder(text_feature, wave_feature, text_pad_mask, text_self_attention_mask, dot_attention_mask)
         output = self.output_linear(output)
         return output
@@ -63,17 +59,22 @@ class Transformer(BaseModel):
     def cal_metrics(self, output, input):
         output_id = output.topk(1)[1].squeeze(-1)
         pack = Pack()
-        loss = calculate_loss(output, input.tgt)
+        loss = calculate_loss(output, input.tgt_for_metric)
         assert not t.isinf(loss)
-        score = calculate_cer(output_id, input.tgt)
-        pack.add(loss=loss, score=score)
+        output_str = [self.vocab.convert_id2str(i) for i in output_id]
+        tgt_str = [self.vocab.convert_id2str(i) for i in input.tgt_for_metric]
+        cer = sum([calculate_cer(i[0], i[1]) for i in zip(output_str, tgt_str)]) * 100 / len(output_str)
+        pack.add(loss=loss, cer=t.Tensor([cer]))
         return pack
 
     def iterate(self, input, optimizer=None, is_train=True):
         output = self.forward(input)
         metrics = self.cal_metrics(output, input)
-
-        return metrics
+        if optimizer is not None and is_train:
+            optimizer.zero_grad()
+            metrics.loss.backward()
+            optimizer.step()
+        return metrics, None
 
     def greedy_search(self):
         pass

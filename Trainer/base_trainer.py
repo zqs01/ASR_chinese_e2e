@@ -63,7 +63,7 @@ class BaseTrainer:
 
             if self.global_step % self.save_every_iter == 0 and self.global_step != 0:
                 self.save_ckpt(metrics[self.reference[1:]])
-            desc = f'Train-epoch: {self.global_epoch}, step: {self.global_step}, loss: {1}, cer: {1}'
+            desc = f'Train-epoch: {self.global_epoch}, step: {self.global_step}, loss: {metrics.loss.item()}, cer: {metrics.cer.item()}'
             train_bar.set_description(desc)
         print(f'in train epoch:{self.global_epoch}, average_loss{1} average_score{1}')#TODO use true value
         self.save_ckpt(metrics[self.reference[1:]])
@@ -99,7 +99,7 @@ class BaseTrainer:
         # print(f'\nsummarizing in {self.global_step}')
         for i in pack:
             tmp_prefix = prefix + i
-            self.summary_writer.add_scalar(tmp_prefix, pack[i].numpy(), self.global_step)
+            self.summary_writer.add_scalar(tmp_prefix, pack[i].detach().cpu().numpy(), self.global_step)
 
     def evaluate(self, dev_iter, prefix='dev/'):
         print(f'\nEvaluating')

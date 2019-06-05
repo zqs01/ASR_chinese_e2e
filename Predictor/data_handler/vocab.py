@@ -1,18 +1,13 @@
 import torch as t
 from collections import Counter
 
-# PAD = '<PAD>'
-# UNK = '<UNK>'
-# BOS = '<BOS>'
-# EOS = '<EOS>'
-
 def tokenize_fn(x):
     return [i for i in x]
 
 
 class Vocab:
 
-    def __init__(self, PAD = '<PAD>', UNK = '<UNK>', BOS = '<BOS>', EOS = '<EOS>',
+    def __init__(self, PAD = '$', UNK = '%', BOS = '^', EOS = '&',
                  tokenize_fn=tokenize_fn):
         self._counter = Counter()
         self.PAD = PAD
@@ -57,24 +52,32 @@ class Vocab:
         print(f'vocab loaded from {path}')
         return obj
 
-    def convert_str(self, string:str, use_label: bool = True):
+    def convert_str(self, string:str, use_bos: bool = True, use_eos: bool = True):
         token = self._tokenize_fn(string)
-        if use_label:
-            token = [self.BOS] + token + [self.EOS]
-            id = self.convert_token(token)
+        if use_bos:
+            token = [self.BOS] + token
+        if use_eos:
+            token = token + [self.EOS]
+        id = self.convert_token(token)
         return id
 
     def convert_token(self, token: list):
         id = [self._token2id.get(i, self._token2id[self.UNK]) for i in token]
         return id
 
-    def convert_id(self, id: list, use_label: bool = True):
+    def convert_id(self, id: list):
         assert self._id2token is not None
-
         token = [self._id2token[i] for i in id]
-        if use_label:
-            token = [self.BOS] + token + [self.EOS]
+        # if use_label:
+        #     token = [self.BOS] + token + [self.EOS]
         return token
+
+    def convert_id2str(self, id: list):
+        assert self._id2token is not None
+        token = [self._id2token[i] for i in id if i!=self._token2id[self.PAD]]
+        token = ' '.join(token)
+        return token
+
 
     @property
     def vocab_size(self):

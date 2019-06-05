@@ -92,4 +92,4 @@ def train(**kwargs):
 
 if __name__ == '__main__':
     #fire.Fire(show_configs)
-    fire.Fire(train, '--lr=1 --model_name="Transformer" --batch_size=3 --drop_exp=False --predump=False')
+    fire.Fire(train, '--lr=1 --model_name="Transformer" --batch_size=16 --drop_exp=False --predump=False')

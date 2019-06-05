@@ -35,21 +35,22 @@ class AiShell1(Dataset):
 
         if self.use_old:
             file = line['wave'].split('.')[0] + '.t'
-            wave, tgt = t.load(file)
-            return wave, tgt, line
+            wave, tgt_for_input, tgt_for_metric = t.load(file)
+            return wave, tgt_for_input, tgt_for_metric, line
         else:
-            tgt = self.vocab.convert_str(line['tgt'])
+            tgt_for_input = self.vocab.convert_str(line['tgt'], use_bos=True, use_eos=False)
+            tgt_for_metric = self.vocab.convert_str(line['tgt'], use_bos=False, use_eos=True)
             wave = self.parser.parse(line['wave'], augment=self.augment)
-            return wave, tgt, line
+            return wave, tgt_for_input, tgt_for_metric, line
 
     def __len__(self):
         return len(self.datas)
 
     def pre_dump_features(self):
         for i in tqdm(self, desc='pre dumping features'):
-            wave, tgt, line = i
+            wave, tgt_for_input, tgt_for_metric, line = i
             file = line['wave'].split('.')[0] + '.t'
-            t.save((wave, tgt), file)
+            t.save((wave, tgt_for_input, tgt_for_metric), file)
 
 
 @dataclass
@@ -63,10 +64,13 @@ class collat:
     def __call__(self, batch):
         pack = Pack()
         wave = [i[0] for i in batch]
-        tgt = [i[1] for i in batch]
+        tgt_for_input = [i[1] for i in batch]
+        tgt_for_metric = [i[2] for i in batch]
         wave, wave_len = Padder.pad_tri(wave, 0)
-        tgt, tgt_len = Padder.pad_two(tgt, 0)
-        pack.add(wave=wave, tgt=tgt.long(), wave_len=t.Tensor(wave_len).long(), tgt_len=t.Tensor(tgt_len).long())
+        tgt_for_input, tgt_for_input_len = Padder.pad_two(tgt_for_input, 0)
+        tgt_for_metric, tgt_for_metric_len = Padder.pad_two(tgt_for_metric, 0)
+        pack.add(wave=wave, tgt_for_input=tgt_for_input.long(), wave_len=t.Tensor(wave_len).long(), tgt_len=t.Tensor(tgt_for_input_len).long())
+        pack.add(tgt_for_metric=tgt_for_metric.long())
         if self.use_cuda:
             pack = pack.cuda()
         return pack
