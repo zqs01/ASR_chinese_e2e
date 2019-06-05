@@ -2,42 +2,56 @@ import torchaudio as ta
 import torch as t
 
 from Predictor.data_handler import load_wav
-from Predictor.data_handler import freq_mask
-from Predictor.data_handler import time_mask
+from Predictor.data_handler.augments import freq_mask
+from Predictor.data_handler.augments import time_mask
+from dataclasses import dataclass
 
-
+@dataclass
 class AudioParser:
+    sample_rate: int = 16000
+    n_mels: int = 40
+    window_size: int = 400
+    hop: int = None
+    f_min: int = 0
+    f_max: int = None
+    pad: int = 0
 
-    def __init__(self, sr=16000, n_mels=40, n_fft=400, ws=None, hop=None, f_min=0.0, f_max=-80, pad=0):
-        self.transform_fn = ta.transforms.MelSpectrogram(
-            sr=sr, n_mels=n_mels, n_fft=n_fft, ws=ws, hop=hop, f_min=f_min, f_max=f_max, pad=pad
-        )
+    def load(self, path):
+        signal, sample_rate = load_wav(path)
+        return signal, sample_rate
 
     def transform(self, signal: t.Tensor, sample_rate: int) -> t.Tensor:
-        assert self.transform_fn.sr == sample_rate
-        feature = self.transform_fn(signal).squeeze(0)
+        assert self.sample_rate == sample_rate
+        feature = ta.transforms.MelSpectrogram(
+            sr=self.sample_rate, ws=self.window_size, hop=self.hop, f_min=self.f_min, f_max=self.f_max, pad=self.pad,
+            n_mels=self.n_mels)(signal)
+        feature = t.log(feature.squeeze(0).transpose(0,1) + 1e-20)
+        # faeture : [n_mels, seqlen]
         return feature
 
     def normalize(self, feature: t.Tensor):
-        feature = (feature - feature.mean()) / feature.std()
+        # faeture : [n_mels, seqlen]
+        feature = (feature - feature.mean(1).unsqueeze(1)) / feature.std(1).unsqueeze(1)
+        # faeture : [n_mels, seqlen]
         return feature
 
     def augment(self, feature):
-        feature.transpose_(-1, -2)
-        feature = time_mask(feature)
+        f = feature.unsqueeze(0)
+        feature = time_mask(f)
         feature = freq_mask(feature)
-        feature.transpose_(-1, -2)
+        feature = feature.squeeze(0)
         #feature = self.time_shift(feature)
         return feature
 
     def parse(self, path: str, augment: bool=False) -> t.Tensor:
-        signal, sample_rate = load_wav(path)
+        signal, sample_rate = self.load(path)
         feature = self.transform(signal, sample_rate)
         feature = self.normalize(feature)
         if augment:
             feature = self.augment(feature)
         else:
             pass
+        feature = feature.transpose(0, 1)
         return feature
 
 
