@@ -1,7 +1,6 @@
 import os
 import shutil
 import datetime
-import torch as t
 from typing import Any
 from tqdm.auto import tqdm
 from dataclasses import dataclass
@@ -11,7 +10,7 @@ from Trainer import MetricsManager
 
 
 @dataclass
-class BaseTrainer:
+class Trainer11:
     optimizer: Any
     model: Any
     train_iter: Any
@@ -51,9 +50,12 @@ class BaseTrainer:
 
     def train_epoch(self):
         self.model.train()
+        max_len = 0
         train_bar = tqdm(iterable=self.train_iter, leave=True, total=len(self.train_iter))
         for data in train_bar:
             metrics, _ = self.model.iterate(data, optimizer=self.optimizer, is_train=True)
+            # lr = self.optimizer.rate()
+            # self.summary_writer.add_scalar('lr', lr, self.global_step)
 
             if self.global_step % self.log_every_iter == 0 and self.global_step != 0:
                 self.summarize(metrics, 'train/')
@@ -64,11 +66,14 @@ class BaseTrainer:
 
             if self.global_step % self.save_every_iter == 0 and self.global_step != 0:
                 self.save_ckpt(metrics[self.reference[1:]])
-            desc = f'Train-epoch: {self.global_epoch}, loss: {metrics.loss.item()}, cer: {metrics.cer.item()}'
+            le = data.wave.size(1)
+            if le > max_len:
+                max_len = le
+            desc = f'Train-epoch: {self.global_epoch},max_len: {max_len} loss: {metrics.loss.item()}, cer: {metrics.cer.item()}'
             train_bar.set_description(desc)
         print(f'in train epoch:{self.global_epoch}, average_loss{1} average_score{1}')#TODO use true value
-        self.save_ckpt(metrics[self.reference[1:]])
-        self.evaluate(self.test_iter, 'test/')
+        #self.save_ckpt(metrics[self.reference[1:]])
+        #self.evaluate(self.test_iter, 'test/')
 
     def load_from_ckpt(self, exp_name, epoch, step):
         prefix = f'e{epoch}_s{step}'
@@ -106,13 +111,12 @@ class BaseTrainer:
         print(f'\nEvaluating')
         self.model.eval()
         dev_metric_manager = MetricsManager()
-        dev_bar = tqdm(dev_iter, leave=True, total=len(dev_iter), disable=True)
-        with t.no_grad():
-            for data in dev_iter:
-                metrics, _ = self.model.iterate(data, is_train=False)
-                dev_metric_manager.update(metrics)
-                desc = f'Valid-loss: {metrics.loss.item()}, cer: {metrics.cer.item()}'
-                dev_bar.set_description(desc)
+        dev_bar = tqdm(dev_iter, leave=True, total=len(dev_iter), disable=False)
+        for data in dev_iter:
+            metrics, _ = self.model.iterate(data, is_train=False)
+            dev_metric_manager.update(metrics)
+            desc = f'Valid-loss: {metrics.loss.item()}, cer: {metrics.cer.item()}'
+            dev_bar.set_description(desc)
         print(f'\nValid, average_loss: {1}, average_score: {1}')#TODO use true value
         report = dev_metric_manager.report_cum()
         report = dev_metric_manager.extract(report)

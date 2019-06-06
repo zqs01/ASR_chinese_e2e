@@ -24,16 +24,26 @@ class Transformer(BaseModel):
         super(Transformer, self).__init__()
         self.config = config
         self.vocab = vocab
-        self.input_linear = t.nn.Linear(config.n_mels, config.d_model)
+        self.input_linear = t.nn.Sequential(
+            t.nn.Linear(config.n_mels, config.n_mels * 2),
+            t.nn.ReLU(True),
+            t.nn.Dropout(config.dropout),
+            t.nn.Linear(config.n_mels * 2, config.d_model)
+        )
+        #self.input_linear = t.nn.Linear(config.n_mels, config.d_model)
         self.position_encoder = PositionalEncoding(config.d_model)
-        self.word_embeder = t.nn.Embedding(vocab.vocab_size, config.d_model)
+        self.word_embeder = t.nn.Embedding(vocab.vocab_size, config.d_model, padding_idx=0)
+        self.input_layer_norm = t.nn.LayerNorm(config.d_model)
+        self.text_layer_norm = t.nn.LayerNorm(config.d_model)
         self.encoder = Encoder(input_size=config.d_model, hidden_size=config.hidden_size, ff_size=config.ff_size,
                                num_head=config.num_head, dropout=config.dropout, layer_num=config.layer_num)
         self.decoder = Decoder(input_size=config.d_model, hidden_size=config.hidden_size, ff_size=config.ff_size,
                                num_head=config.num_head, dropout=config.dropout, layer_num=config.layer_num)
-        self.output_linear = t.nn.Linear(config.d_model, vocab.vocab_size)
+        self.output_linear = t.nn.Linear(config.d_model, vocab.vocab_size, bias=False)
         self.output_linear.weight = self.word_embeder.weight
         self.x_logit_scale = config.d_model ** -0.5
+        t.nn.init.xavier_normal_(self.input_linear[0].weight)
+        t.nn.init.xavier_normal_(self.word_embeder.weight)
 
     def forward(self, input):
         wave, wave_len, text_for_input, text_len = input.wave, input.wave_len, input.tgt_for_input, input.tgt_len
@@ -47,11 +57,13 @@ class Transformer(BaseModel):
         dot_attention_mask = Masker.get_attn_key_pad_mask(wave_pad_mask, input.tgt_for_input)
 
         wave_feature = self.input_linear(wave)
-        wave_feature = wave_feature + self.position_encoder(wave_feature)
+        wave_feature += self.position_encoder(wave_feature)
+        wave_feature = self.input_layer_norm(wave_feature)
         wave_feature = self.encoder(wave_feature, wave_pad_mask, wave_self_attention_mask)
 
         text_feature = self.word_embeder(text_for_input) * self.x_logit_scale
-        text_feature = text_feature + self.position_encoder(text_feature)
+        text_feature += self.position_encoder(text_feature)
+        text_feature = self.text_layer_norm(text_feature)
         output = self.decoder(text_feature, wave_feature, text_pad_mask, text_self_attention_mask, dot_attention_mask)
         output = self.output_linear(output)
         return output
@@ -73,6 +85,7 @@ class Transformer(BaseModel):
         if optimizer is not None and is_train:
             optimizer.zero_grad()
             metrics.loss.backward()
+            t.nn.utils.clip_grad_norm_(self.parameters(), 5.0)
             optimizer.step()
         return metrics, None
 
@@ -86,8 +99,8 @@ class Transformer(BaseModel):
     def get_default_config(cls):
         @dataclass
         class ModelConfig(BaseConfig):
-            d_model = 256
-            hidden_size = 128
+            d_model = 512
+            hidden_size = 64
             ff_size = 512
             num_head = 8
             dropout = 0.1
@@ -147,10 +160,10 @@ class EncoderLayer(t.nn.Module):
         pad_mask = pad_mask.unsqueeze(-1)
         feature_ = self.self_attention(feature, feature, feature, self_attention_mask)
         feature = self.layer_norm1(self.dropout1(feature_) + feature)
-        feature = feature * pad_mask
+        feature *= pad_mask
         feature_ = self.feed_forward(feature)
         feature = self.layer_norm2(self.dropout2(feature_) + feature)
-        feature = feature * pad_mask
+        feature *= pad_mask
         return feature
 
 
@@ -184,13 +197,13 @@ class DecoderLayer(t.nn.Module):
         pad_mask = pad_mask.unsqueeze(-1)
         feature_ = self.self_attnention(feature, feature, feature, self_attention_mask)
         feature = self.layer_norm1(self.dropout1(feature_) + feature)
-        feature = feature * pad_mask
+        feature *= pad_mask
         feature_ = self.dot_attention(feature, encoder_output, encoder_output, dot_attention_mask)
         feature = self.layer_norm2(self.dropout2(feature_) + feature)
-        feature = feature * pad_mask
+        feature *= pad_mask
         feature_ = self.feed_forward(feature)
         feature = self.layer_norm3(self.dropout3(feature_) + feature)
-        feature = feature * pad_mask
+        feature *= pad_mask
         return feature
 
 
@@ -266,7 +279,6 @@ class DotAttention(t.nn.Module):
 
     def forward(self, query, key, value, attention_mask=None):
         attention = t.bmm(query, key.transpose(1, 2)) / self.C
-        attention = self.softmax(attention)
         if attention_mask is not None:
             attention = attention.masked_fill(attention_mask == 0, -math.inf)
         attention = self.softmax(attention)

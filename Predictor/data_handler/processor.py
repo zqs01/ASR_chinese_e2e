@@ -11,7 +11,7 @@ class AudioParser:
     sample_rate: int = 16000
     n_mels: int = 40
     window_size: int = 400
-    hop: int = None
+    hop: int = 160
     f_min: int = 0
     f_max: int = None
     pad: int = 0
@@ -25,7 +25,7 @@ class AudioParser:
         feature = ta.transforms.MelSpectrogram(
             sr=self.sample_rate, ws=self.window_size, hop=self.hop, f_min=self.f_min, f_max=self.f_max, pad=self.pad,
             n_mels=self.n_mels)(signal)
-        feature = t.log(feature.squeeze(0).transpose(0,1) + 1e-20)
+        feature = t.log(feature.squeeze(0).transpose(0, 1) + 1e-20)
         # faeture : [n_mels, seqlen]
         return feature
 

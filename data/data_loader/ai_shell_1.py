@@ -22,7 +22,7 @@ class AiShell1(Dataset):
     """
     def __init__(self, datas, vocab, sample_rate=16000, window_size=400, n_mels=40, augment=False, use_old=False):
         super(AiShell1, self).__init__()
-        self.datas = datas
+        self.datas = datas[:16]
         self.vocab = vocab
 
         self.parser = AudioParser(
