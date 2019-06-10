@@ -1,6 +1,8 @@
 import math
 import torch as t
+import numpy as np
 from dataclasses import dataclass
+import torch.nn.functional as F
 
 from Predictor.Utils import Pack
 from Predictor.Bases import BaseModel
@@ -25,14 +27,13 @@ class Transformer(BaseModel):
         self.config = config
         self.vocab = vocab
         self.input_linear = t.nn.Sequential(
-            t.nn.Linear(config.n_mels, config.n_mels * 2),
-            t.nn.ReLU(True),
-            t.nn.Dropout(config.dropout),
-            t.nn.Linear(config.n_mels * 2, config.d_model)
+            t.nn.Linear(config.n_mels, config.d_model),
+            t.nn.ReLU(),
         )
         #self.input_linear = t.nn.Linear(config.n_mels, config.d_model)
         self.position_encoder = PositionalEncoding(config.d_model)
         self.word_embeder = t.nn.Embedding(vocab.vocab_size, config.d_model, padding_idx=0)
+        self.word_embeder.weight.data.normal_(0, 0.1)
         self.input_layer_norm = t.nn.LayerNorm(config.d_model)
         self.text_layer_norm = t.nn.LayerNorm(config.d_model)
         self.encoder = Encoder(input_size=config.d_model, hidden_size=config.hidden_size, ff_size=config.ff_size,
@@ -40,10 +41,10 @@ class Transformer(BaseModel):
         self.decoder = Decoder(input_size=config.d_model, hidden_size=config.hidden_size, ff_size=config.ff_size,
                                num_head=config.num_head, dropout=config.dropout, layer_num=config.layer_num)
         self.output_linear = t.nn.Linear(config.d_model, vocab.vocab_size, bias=False)
-        self.output_linear.weight = self.word_embeder.weight
+        t.nn.init.xavier_normal_(self.output_linear.weight)
+        #self.output_linear.weight = self.word_embeder.weight
         self.x_logit_scale = config.d_model ** -0.5
         t.nn.init.xavier_normal_(self.input_linear[0].weight)
-        t.nn.init.xavier_normal_(self.word_embeder.weight)
 
     def forward(self, input):
         wave, wave_len, text_for_input, text_len = input.wave, input.wave_len, input.tgt_for_input, input.tgt_len
@@ -57,15 +58,15 @@ class Transformer(BaseModel):
         dot_attention_mask = Masker.get_attn_key_pad_mask(wave_pad_mask, input.tgt_for_input)
 
         wave_feature = self.input_linear(wave)
-        wave_feature += self.position_encoder(wave_feature)
+        wave_feature += self.position_encoder(wave_feature) * wave_pad_mask.unsqueeze(-1)
         wave_feature = self.input_layer_norm(wave_feature)
         wave_feature = self.encoder(wave_feature, wave_pad_mask, wave_self_attention_mask)
 
-        text_feature = self.word_embeder(text_for_input) * self.x_logit_scale
-        text_feature += self.position_encoder(text_feature)
+        text_feature = self.word_embeder(text_for_input)
+        text_feature += self.position_encoder(text_feature) * text_pad_mask.unsqueeze(-1)
         text_feature = self.text_layer_norm(text_feature)
         output = self.decoder(text_feature, wave_feature, text_pad_mask, text_self_attention_mask, dot_attention_mask)
-        output = self.output_linear(output)
+        output = self.output_linear(output)# * self.x_logit_scale
         return output
 
     def cal_metrics(self, output, input):
@@ -207,85 +208,133 @@ class DecoderLayer(t.nn.Module):
         return feature
 
 
+
 class FeedForward(t.nn.Module):
     def __init__(self, input_size, hidden_size, dropout):
         super(FeedForward, self).__init__()
-        self.linear = t.nn.Sequential(
-            t.nn.Conv1d(input_size, hidden_size, 1),
-            t.nn.ReLU(True),
-            t.nn.Dropout(dropout),
-            t.nn.Conv1d(hidden_size, input_size, 1),
-        )
-        t.nn.init.xavier_normal_(self.linear[0].weight)
-        t.nn.init.xavier_normal_(self.linear[-1].weight)
+        self.linear1 = t.nn.Conv1d(input_size, hidden_size, 1)
+        self.linear2 = t.nn.Conv1d(hidden_size, input_size, 1)
+        self.relu = t.nn.ReLU(True)
+        t.nn.init.xavier_normal_(self.linear1.weight)
+        self.linear1.bias.data.zero_()
+        self.linear2.bias.data.zero_()
+        t.nn.init.xavier_normal_(self.linear2.weight)
 
-    def forward(self, feature):
-        net = feature.transpose(-1, -2)
-        net = self.linear(net)
-        net = net.transpose(-1, -2)
+    def forward(self, inputs):
+        net = self.linear1(inputs.transpose(1, 2))
+        net = self.relu(net)
+        net = self.linear2(net)
+        net = net.transpose(1, 2)
         return net
 
 
 class MultiHeadAttention(t.nn.Module):
     def __init__(self, input_size, hidden_size, dropout, num_head):
         super(MultiHeadAttention, self).__init__()
+        self.dropout = t.nn.Dropout(dropout)
         self.num_head = num_head
         self.hidden_size = hidden_size
-        self.query_linear = t.nn.Linear(input_size, num_head * hidden_size)
-        self.key_linear = t.nn.Linear(input_size, num_head * hidden_size)
-        self.value_linear = t.nn.Linear(input_size, num_head * hidden_size)
-        self.dot_attention = DotAttention(hidden_size, dropout)
-        self.output_linear = t.nn.Linear(num_head * hidden_size, input_size)
-        t.nn.init.xavier_normal_(self.query_linear.weight)
-        t.nn.init.xavier_normal_(self.key_linear.weight)
-        t.nn.init.xavier_normal_(self.value_linear.weight)
-        t.nn.init.xavier_normal_(self.output_linear.weight)
-
-    def reshape(self, tensor, batch_size, seq_length, num_head, hidden_size):
-        # B, L, N*H
-        tensor = tensor.view(batch_size, seq_length, num_head, hidden_size)
-        tensor = tensor.permute(2, 0, 1, 3).contiguous()
-        tensor = tensor.view(num_head * batch_size, seq_length, hidden_size)
-        return tensor
+        self.output_dim = input_size
+        self.key_projection = t.nn.Linear(input_size, self.num_head * self.hidden_size, bias=False)
+        self.query_projection = t.nn.Linear(input_size, self.num_head * self.hidden_size, bias=False)
+        self.value_projection = t.nn.Linear(input_size, self.num_head * self.hidden_size, bias=False)
+        self.scale = np.sqrt(self.hidden_size)
+        self.linear = t.nn.Linear(self.num_head * self.hidden_size, input_size, bias=False)
+        t.nn.init.xavier_normal_(self.key_projection.weight)
+        t.nn.init.xavier_normal_(self.query_projection.weight)
+        t.nn.init.xavier_normal_(self.value_projection.weight)
+        t.nn.init.xavier_normal_(self.linear.weight)
 
     def forward(self, query, key, value, attention_mask=None):
-        batch_size, query_length, _ = query.size()
-        _, key_length, _ = key.size()
-        query_ = self.query_linear(query)
-        key_ = self.key_linear(key)
-        value_ = self.value_linear(value)
+        attention_mask = attention_mask.unsqueeze(1).repeat(1, self.num_head, 1, 1)
+        # key = value
+        batch_size, query_lenth, query_dim = query.size()
+        key_lenth = key.size(1)
+        query_projection = self.query_projection(query).view(batch_size, query_lenth, self.num_head, self.hidden_size).permute(0, 2, 1, 3)
+        # B, N, QL, H
 
-        query_ = self.reshape(query_, batch_size=batch_size, seq_length=query_length, num_head=self.num_head,
-                              hidden_size=self.hidden_size)
-        key_ = self.reshape(key_, batch_size=batch_size, seq_length=key_length, num_head=self.num_head,
-                            hidden_size=self.hidden_size)
-        value_ = self.reshape(value_, batch_size=batch_size, seq_length=key_length, num_head=self.num_head,
-                              hidden_size=self.hidden_size)
+        key_projection = self.key_projection(key).view(batch_size, key_lenth, self.num_head, self.hidden_size).permute(0, 2, 3, 1)
+        # B, N, H, KL
+
+        value_projection = self.value_projection(value).view(batch_size, key_lenth, self.num_head, self.hidden_size).permute(0, 2, 1, 3)
+        # B, N, KL, H
+
+        attention_matrix = query_projection @ key_projection
+        # B, N, QL, KL
+
         if attention_mask is not None:
-            attention_mask = attention_mask.repeat(self.num_head, 1, 1)
-        output, _ = self.dot_attention(query_, key_, value_, attention_mask)
-        output = output.view(self.num_head, batch_size, query_length, -1)
-        output = output.permute(1, 2, 0, 3).contiguous().view(batch_size, query_length, -1)
-        output = self.output_linear(output)
-        return output
+            attention_matrix.masked_fill_(attention_mask == 0, -float('inf'))
 
-
-class DotAttention(t.nn.Module):
-    def __init__(self, hidden_size, dropout):
-        super(DotAttention, self).__init__()
-        self.C = math.sqrt(hidden_size)
-        self.dropout = t.nn.Dropout(dropout)
-        self.softmax = t.nn.Softmax(2)
-
-    def forward(self, query, key, value, attention_mask=None):
-        attention = t.bmm(query, key.transpose(1, 2)) / self.C
-        if attention_mask is not None:
-            attention = attention.masked_fill(attention_mask == 0, -math.inf)
-        attention = self.softmax(attention)
-        attention = self.dropout(attention)
-        output = t.bmm(attention, value)
-        return output, attention
+        attention_matrix = F.softmax(attention_matrix, -1)
+        # attention_matrix = attention_matrix.masked_fill(t.isnan(attention_matrix), 0)
+        # attention_matrix = self.dropout(attention_matrix)
+        weighted = attention_matrix @ value_projection
+        # B, N, QL, KL * B, N, KL, H -> B, N，QL, H
+        output = weighted.permute(0, 2, 1, 3).contiguous().view(batch_size, query_lenth, self.num_head * self.hidden_size)
+        output = self.linear(output)
+        return output#, attention_matrix
 #
+# class MultiHeadAttention(t.nn.Module):
+#     def __init__(self, input_size, hidden_size, dropout, num_head):
+#         super(MultiHeadAttention, self).__init__()
+#         self.num_head = num_head
+#         self.hidden_size = hidden_size
+#         self.query_linear = t.nn.Linear(input_size, num_head * hidden_size, bias=False)
+#         self.key_linear = t.nn.Linear(input_size, num_head * hidden_size, bias=False)
+#         self.value_linear = t.nn.Linear(input_size, num_head * hidden_size, bias=False)
+#
+#         self.dot_attention = DotAttention(hidden_size, dropout)
+#         self.output_linear = t.nn.Linear(num_head * hidden_size, input_size, bias=False)
+#         t.nn.init.xavier_normal_(self.query_linear.weight)
+#         t.nn.init.xavier_normal_(self.key_linear.weight)
+#         t.nn.init.xavier_normal_(self.value_linear.weight)
+#         t.nn.init.xavier_normal_(self.output_linear.weight)
+#
+#     def reshape(self, tensor, batch_size, seq_length, num_head, hidden_size):
+#         # B, L, N*H
+#         tensor = tensor.view(batch_size, seq_length, num_head, hidden_size)
+#         tensor = tensor.permute(2, 0, 1, 3).contiguous()
+#         tensor = tensor.view(num_head * batch_size, seq_length, hidden_size)
+#         return tensor
+#
+#     def forward(self, query, key, value, attention_mask=None):
+#         batch_size, query_length, _ = query.size()
+#         _, key_length, _ = key.size()
+#         query_ = self.query_linear(query)
+#         key_ = self.key_linear(key)
+#         value_ = self.value_linear(value)
+#
+#         query_ = self.reshape(query_, batch_size=batch_size, seq_length=query_length, num_head=self.num_head,
+#                               hidden_size=self.hidden_size)
+#         key_ = self.reshape(key_, batch_size=batch_size, seq_length=key_length, num_head=self.num_head,
+#                             hidden_size=self.hidden_size)
+#         value_ = self.reshape(value_, batch_size=batch_size, seq_length=key_length, num_head=self.num_head,
+#                               hidden_size=self.hidden_size)
+#         if attention_mask is not None:
+#             attention_mask = attention_mask.repeat(self.num_head, 1, 1)
+#         output, _ = self.dot_attention(query_, key_, value_, attention_mask)
+#         output = output.view(self.num_head, batch_size, query_length, -1)
+#         output = output.permute(1, 2, 0, 3).contiguous().view(batch_size, query_length, -1)
+#         output = self.output_linear(output)
+#         return output
+
+#
+# class DotAttention(t.nn.Module):
+#     def __init__(self, hidden_size, dropout):
+#         super(DotAttention, self).__init__()
+#         self.C = math.sqrt(hidden_size)
+#         self.dropout = t.nn.Dropout(dropout)
+#         self.softmax = t.nn.Softmax(dim=2)
+#
+#     def forward(self, query, key, value, attention_mask=None):
+#         attention = t.bmm(query, key.transpose(1, 2)) / self.C
+#         if attention_mask is not None:
+#             attention = attention.masked_fill(attention_mask == 0, -math.inf)
+#         attention = self.softmax(attention)
+#         attention = self.dropout(attention)
+#         output = t.bmm(attention, value)
+#         return output, attention
+# #
 # if __name__ == '__main__':
 #     d_model = 5
 #     hidden_size = 512

@@ -6,14 +6,17 @@ from Predictor.data_handler.augments import freq_mask
 from Predictor.data_handler.augments import time_mask
 from dataclasses import dataclass
 
+import seaborn as sns
+
+
 @dataclass
 class AudioParser:
     sample_rate: int = 16000
     n_mels: int = 40
     window_size: int = 400
     hop: int = 160
-    f_min: int = 0
-    f_max: int = None
+    f_min: int = 40
+    f_max: int = -200
     pad: int = 0
 
     def load(self, path):
@@ -57,5 +60,5 @@ class AudioParser:
 
 if __name__ == '__main__':
     parser = AudioParser()
-    feature = parser.parse('../../data/data_aishell/wav/train/S0722/BAC009S0722W0494.wav')
+    feature = parser.parse('../../data/data_aishell/wav/train/S0722/BAC009S0722W0494.wav', True)
     print(feature.shape)

@@ -22,11 +22,10 @@ class AiShell1(Dataset):
     """
     def __init__(self, datas, vocab, sample_rate=16000, window_size=400, n_mels=40, augment=False, use_old=False):
         super(AiShell1, self).__init__()
-        self.datas = datas[:16]
+        self.datas = datas
         self.vocab = vocab
 
-        self.parser = AudioParser(
-            sample_rate=sample_rate, n_mels=n_mels, window_size=window_size)
+        self.parser = AudioParser(sample_rate=sample_rate, n_mels=n_mels, window_size=window_size)
         self.augment = augment
         self.use_old = use_old
 
@@ -86,7 +85,7 @@ def build_dataloader(collector_path,vocab, batch_size, part='test', use_cuda=Tru
         data_set.use_old = False
         data_set.pre_dump_features()
         data_set.use_old = True
-    data_loader = DataLoader(data_set, batch_size, collate_fn=collat(use_cuda))
+    data_loader = DataLoader(data_set, batch_size, collate_fn=collat(use_cuda), drop_last=True)
     return data_loader
 
 

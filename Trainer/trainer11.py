@@ -52,7 +52,8 @@ class Trainer11:
         self.model.train()
         max_len = 0
         train_bar = tqdm(iterable=self.train_iter, leave=True, total=len(self.train_iter))
-        for data in train_bar:
+        average_loss = 0
+        for i, data in enumerate(train_bar):
             metrics, _ = self.model.iterate(data, optimizer=self.optimizer, is_train=True)
             # lr = self.optimizer.rate()
             # self.summary_writer.add_scalar('lr', lr, self.global_step)
@@ -69,7 +70,8 @@ class Trainer11:
             le = data.wave.size(1)
             if le > max_len:
                 max_len = le
-            desc = f'Train-epoch: {self.global_epoch},max_len: {max_len} loss: {metrics.loss.item()}, cer: {metrics.cer.item()}'
+            average_loss += metrics.loss.item()
+            desc = f'Train-epoch: {self.global_epoch},max_len: {max_len} loss: {average_loss / (i+1)}, current loss:{metrics.loss.item()} cer: {metrics.cer.item()}'
             train_bar.set_description(desc)
         print(f'in train epoch:{self.global_epoch}, average_loss{1} average_score{1}')#TODO use true value
         #self.save_ckpt(metrics[self.reference[1:]])

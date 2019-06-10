@@ -5,7 +5,7 @@ from Predictor import Models
 from Predictor.data_handler import Vocab
 from Predictor.data_handler import DataConfigAiShell1
 from data.data_loader.ai_shell_1 import build_dataloader
-from Trainer import Trainer11
+from Trainer import Trainer11, NoamOpt
 from Trainer import NoamOpt
 
 
@@ -14,7 +14,7 @@ class TrainConfig(DataConfigAiShell1):
     lr = 1e-3
     batch_size = 16
     eval_batch_size = 16
-    num_epoch = 1000
+    num_epoch = 5000
     warm_up = 4000
     device_id = (0, 1)
     exp_name = None
@@ -71,11 +71,11 @@ def train(**kwargs):
         sample_rate=config.sample_rate, window_size=config.window_size, n_mels=config.n_mels, augment=False,
         predump=config.predump, use_old=config.use_old)
 
-    model = Model(config, vocab)
-    model = model.wrap()
-    optimizer = t.optim.Adam(model.parameters(), lr=1e-3)
-    #assert config.hidden_size
-    #optimizer = NoamOpt(config.hidden_size, 1, config.warm_up, optimizer)
+    model = Model(config, vocab).cuda()
+    #model = model.wrap()
+    optimizer = t.optim.Adam(model.parameters(), lr=3e-4)
+    assert config.hidden_size
+    optimizer = NoamOpt(config.hidden_size, 1, config.warm_up, optimizer)
     trainer = Trainer11(
         model=model,
         optimizer=optimizer,
@@ -92,4 +92,4 @@ def train(**kwargs):
 
 if __name__ == '__main__':
     #fire.Fire(show_configs)
-    fire.Fire(train, '--lr=1e-3 --model_name="Transformer" --batch_size=16 --drop_exp=False --predump=False --warm_up=200 --log_every_step=1')
+    fire.Fire(train, '--lr=3e-4 --model_name="TransformerNew" --batch_size=16 --drop_exp=False --predump=False --warm_up=4000 --log_every_step=1')
