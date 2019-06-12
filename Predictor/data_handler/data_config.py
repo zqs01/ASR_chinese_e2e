@@ -12,6 +12,8 @@ class DataConfigAiShell1(BaseConfig):
     n_mels = 40
     window_size = 400
     augment = False
+    lfr_m = 4
+    lfr_n = 3
 
     collector_path = 'data/collector'
     vocab_path = 'Predictor/vocab.t'

@@ -1,5 +1,6 @@
 import os
 import shutil
+import torch
 import datetime
 from typing import Any
 from tqdm.auto import tqdm
@@ -71,7 +72,7 @@ class Trainer11:
             if le > max_len:
                 max_len = le
             average_loss += metrics.loss.item()
-            desc = f'Train-epoch: {self.global_epoch},max_len: {max_len} loss: {average_loss / (i+1)}, current loss:{metrics.loss.item()} cer: {metrics.cer.item()}'
+            desc = f'Train-epoch: {self.global_epoch}, lr: {round(self.optimizer._rate, 5)}, max_len: {max_len} loss: {round(average_loss / (i+1), 5)}, current loss:{round(metrics.loss.item(), 5)} cer: {round(metrics.cer.item(), 5)}'
             train_bar.set_description(desc)
         print(f'in train epoch:{self.global_epoch}, average_loss{1} average_score{1}')#TODO use true value
         #self.save_ckpt(metrics[self.reference[1:]])
@@ -114,16 +115,17 @@ class Trainer11:
         self.model.eval()
         dev_metric_manager = MetricsManager()
         dev_bar = tqdm(dev_iter, leave=True, total=len(dev_iter), disable=False)
-        for data in dev_iter:
-            metrics, _ = self.model.iterate(data, is_train=False)
-            dev_metric_manager.update(metrics)
-            desc = f'Valid-loss: {metrics.loss.item()}, cer: {metrics.cer.item()}'
-            dev_bar.set_description(desc)
-        print(f'\nValid, average_loss: {1}, average_score: {1}')#TODO use true value
-        report = dev_metric_manager.report_cum()
-        report = dev_metric_manager.extract(report)
-        self.summarize(report, 'dev/')
-        self.model.train()
+        with torch.no_grad():
+            for data in dev_iter:
+                metrics, _ = self.model.iterate(data, is_train=False)
+                dev_metric_manager.update(metrics)
+                desc = f'Valid-loss: {metrics.loss.item()}, cer: {metrics.cer.item()}'
+                dev_bar.set_description(desc)
+            print(f'\nValid, average_loss: {1}, average_score: {1}')#TODO use true value
+            report = dev_metric_manager.report_cum()
+            report = dev_metric_manager.extract(report)
+            self.summarize(report, 'dev/')
+            self.model.train()
 
     def get_time(self):
         return (datetime.datetime.now() + datetime.timedelta(hours=8)).strftime("%Y%m%d_%H%M")

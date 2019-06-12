@@ -21,18 +21,15 @@ from Predictor.Utils.score import calculate_cer
         return pack
 """
 
-class TransformerNew(BaseModel):
+class TransformerNew2(BaseModel):
     def __init__(self, config, vocab):
-        super(TransformerNew, self).__init__()
+        super(TransformerNew2, self).__init__()
         self.config = config
         self.vocab = vocab
-        self.input_linear = t.nn.Linear(config.n_mels, config.d_model)
-
-        #self.input_linear = Linear(config.n_mels, config.d_model, config.dropout)
-
+        self.input_linear = Linear(config.n_mels, config.d_model, config.dropout)
         self.position_encoder = PositionalEncoding(config.d_model)
         self.word_embeder = t.nn.Embedding(vocab.vocab_size, config.d_model, padding_idx=0)
-        #self.word_embeder.weight.data.normal_(0, 0.1)
+        self.word_embeder.weight.data.normal_(0, 0.1)
 
         self.encoder = Encoder(input_size=config.d_model, hidden_size=config.hidden_size, ff_size=config.ff_size,
                                num_head=config.num_head, dropout=config.dropout, num_layer=config.layer_num)
@@ -40,8 +37,8 @@ class TransformerNew(BaseModel):
                                num_head=config.num_head, dropout=config.dropout, num_layer=config.layer_num)
         self.output_linear = t.nn.Linear(config.d_model, vocab.vocab_size, bias=False)
         t.nn.init.xavier_normal_(self.output_linear.weight)
-        #self.projection_scale = config.d_model ** -0.5
-        #self.output_linear.weight = self.word_embeder.weight
+        self.projection_scale = config.d_model ** -0.5
+        self.output_linear.weight = self.word_embeder.weight
 
     def forward(self, input):
         wave, wave_len, text_for_input, text_len = input.wave, input.wave_len, input.tgt_for_input, input.tgt_len
@@ -50,7 +47,6 @@ class TransformerNew(BaseModel):
         # build masks
         wave_pad_mask = Masker.get_pad_mask(wave[:, :, 0], wave_len)
         wave_self_attention_mask = Masker.get_dot_attention_mask(wave_pad_mask, wave_pad_mask)
-        wave_self_attention_mask = t.triu(t.tril(wave_self_attention_mask, 50), -50)
         text_pad_mask = Masker.get_pad_mask(text_for_input, text_len)
         text_self_attention_mask = Masker.get_dot_attention_mask(text_pad_mask, text_pad_mask)
         text_subsquence_mask = Masker.get_subsequent_mask(text_for_input)
@@ -58,6 +54,7 @@ class TransformerNew(BaseModel):
         dot_attention_mask = Masker.get_dot_attention_mask(text_pad_mask, wave_pad_mask)
 
         wave_feature = self.input_linear(wave)
+
         wave_position_feature = self.position_encoder(wave_feature).repeat(batch_size, 1, 1) * wave_pad_mask.unsqueeze(-1)
         encoder_output = self.encoder(wave_feature, wave_position_feature, wave_pad_mask, wave_self_attention_mask)
 
@@ -65,7 +62,7 @@ class TransformerNew(BaseModel):
         text_position_feature = self.position_encoder(text_feature).repeat(batch_size, 1, 1) * text_pad_mask.unsqueeze(-1)
         decoder_output = self.decoder(
             text_feature, encoder_output, text_pad_mask, text_position_feature, text_self_attention_mask, dot_attention_mask)
-        output = self.output_linear(decoder_output)
+        output = self.output_linear(decoder_output) * self.projection_scale
         return output
 
     def cal_metrics(self, output, input):
@@ -99,10 +96,10 @@ class TransformerNew(BaseModel):
     def get_default_config(cls):
         @dataclass
         class ModelConfig(BaseConfig):
-            d_model = 256
+            d_model = 512
             hidden_size = 64
-            ff_size = 256
-            num_head = 4
+            ff_size = 512
+            num_head = 8
             dropout = 0.1
             layer_num = 6
 
@@ -151,11 +148,8 @@ class Encoder(t.nn.Module):
 
     def forward(self, feature, position_feature, pad_mask, self_attention_mask):
 
+        embedding = self.layer_norm(feature) + position_feature
         for step, encoder_layer in enumerate(self.encoder_list):
-            if step == 0:
-                embedding = self.layer_norm(feature + position_feature)
-            else:
-                embedding = self.layer_norm(embedding + position_feature)
             embedding = encoder_layer(embedding, pad_mask, self_attention_mask)
         return embedding
 
@@ -196,12 +190,8 @@ class Decoder(t.nn.Module):
         self.layer_norm = t.nn.LayerNorm(input_size)
 
     def forward(self, feature, encoder_output, pad_mask, position_feature, self_attention_mask, dot_attention_mask):
-
+        embedding = self.layer_norm(feature) + position_feature
         for step, decoder_layer in enumerate(self.decoder_list):
-            if step == 0:
-                embedding = self.layer_norm(feature + position_feature)
-            else:
-                embedding = self.layer_norm(embedding + position_feature)
             embedding = decoder_layer(embedding, encoder_output, pad_mask, self_attention_mask, dot_attention_mask)
         return embedding
 
@@ -248,18 +238,16 @@ class FeedForward(t.nn.Module):
         self.linear1 = t.nn.Conv1d(input_size, hidden_size, 1)
         self.linear2 = t.nn.Conv1d(hidden_size, input_size, 1)
         self.relu = t.nn.ReLU(True)
-        self.dropout = t.nn.Dropout(dropout)
         t.nn.init.xavier_normal_(self.linear1.weight)
         self.linear1.bias.data.zero_()
         self.linear2.bias.data.zero_()
         t.nn.init.xavier_normal_(self.linear2.weight)
 
     def forward(self, inputs):
-        net = self.linear1(inputs.transpose(-1, -2))
-        net = self.relu(net),
-        net = self.dropout(net),
+        net = self.linear1(inputs.transpose(1, 2))
+        net = self.relu(net)
         net = self.linear2(net)
-        net = net.transpose(-1, -2)
+        net = net.transpose(1, 2)
         return net
 
 
@@ -273,11 +261,11 @@ class MultiHeadAttention(t.nn.Module):
         self.key_projection = t.nn.Linear(input_size, self.num_head * self.hidden_size, bias=False)
         self.query_projection = t.nn.Linear(input_size, self.num_head * self.hidden_size, bias=False)
         self.value_projection = t.nn.Linear(input_size, self.num_head * self.hidden_size, bias=False)
-        t.nn.init.normal_(self.key_projection.weight, mean=0, std=np.sqrt(2.0 / (input_size + hidden_size)))
-        t.nn.init.normal_(self.query_projection.weight, mean=0, std=np.sqrt(2.0 / (input_size + hidden_size)))
-        t.nn.init.normal_(self.value_projection.weight, mean=0, std=np.sqrt(2.0 / (input_size + hidden_size)))
         self.scale = np.sqrt(self.hidden_size)
         self.linear = t.nn.Linear(self.num_head * self.hidden_size, input_size, bias=False)
+        t.nn.init.xavier_normal_(self.key_projection.weight)
+        t.nn.init.xavier_normal_(self.query_projection.weight)
+        t.nn.init.xavier_normal_(self.value_projection.weight)
         t.nn.init.xavier_normal_(self.linear.weight)
 
     def forward(self, query, key, value, attention_mask=None):

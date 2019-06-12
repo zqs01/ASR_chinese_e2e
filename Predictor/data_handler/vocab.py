@@ -43,8 +43,8 @@ class Vocab:
     def load(cls, path: str):
         obj = cls()
         all = t.load(path)
-        obj._token2id = all[1]
         obj._id2token = all[0]
+        obj._token2id = all[1]
         obj.PAD = all[2]
         obj.UNK = all[3]
         obj.BOS = all[4]

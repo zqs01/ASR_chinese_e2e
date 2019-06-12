@@ -29,6 +29,18 @@ class AiShell1(Dataset):
         self.augment = augment
         self.use_old = use_old
 
+    def filter(self, lenths):
+        n = []
+        l = len(self.datas)
+        for i, v in tqdm(enumerate(self.datas), desc=f'filter train data longer than {lenths}.'):
+            wave, _, _, _ = self.__getitem__(i)
+            l1 = wave.shape[0]
+            if l1 < lenths:
+                n.append(v)
+        self.datas = n
+
+        print(f'filter done, {l - len(self.datas)} sample filtered, {len(self.datas)} sample left.')
+
     def __getitem__(self, item):
         line = json.loads(self.datas[item])
 
@@ -72,15 +84,18 @@ class collat:
         pack.add(tgt_for_metric=tgt_for_metric.long())
         if self.use_cuda:
             pack = pack.cuda()
+
         return pack
 
 
-def build_dataloader(collector_path,vocab, batch_size, part='test', use_cuda=True,
+def build_dataloader(collector_path, vocab, batch_size, part='test', use_cuda=True,
                      sample_rate=16000, window_size=400, n_mels=40, augment=False, predump=True, use_old=True):
     with open(collector_path + '_' + part + '.json') as reader:
         datas = reader.readlines()
     data_set = AiShell1(datas, vocab, sample_rate=sample_rate, window_size=window_size, n_mels=n_mels, augment=augment,
                         use_old=use_old)
+    if part == 'train':
+        data_set.filter(800)
     if predump:
         data_set.use_old = False
         data_set.pre_dump_features()
@@ -88,4 +103,5 @@ def build_dataloader(collector_path,vocab, batch_size, part='test', use_cuda=Tru
     data_loader = DataLoader(data_set, batch_size, collate_fn=collat(use_cuda), drop_last=True)
     return data_loader
 
-
+if __name__ == '__main__':
+    pass
