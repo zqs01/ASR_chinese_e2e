@@ -71,7 +71,7 @@ class TransformerOffical(BaseModel):
         text += self.position_embedding(text_len)
 
         encoded = self.encoder(wave, wave_pad_mask, None)
-        decoded = self.decoder(text, encoded, text_pad_mask, None, None)
+        decoded = self.decoder(text, encoded, text_pad_mask, text_subsquence_mask, None)
 
         output = self.output(decoded) * self.project_scale
         return output

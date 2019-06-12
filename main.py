@@ -15,7 +15,7 @@ class TrainConfig(DataConfigAiShell1):
     lr = 1e-3
     batch_size = 16
     eval_batch_size = 16
-    num_epoch = 5000
+    num_epoch = 20
     warm_up = 1000
     device_id = (0, 1)
     exp_name = None

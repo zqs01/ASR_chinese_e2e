@@ -75,8 +75,8 @@ class Trainer11:
             desc = f'Train-epoch: {self.global_epoch}, lr: {round(self.optimizer._rate, 5)}, max_len: {max_len} loss: {round(average_loss / (i+1), 5)}, current loss:{round(metrics.loss.item(), 5)} cer: {round(metrics.cer.item(), 5)}'
             train_bar.set_description(desc)
         print(f'in train epoch:{self.global_epoch}, average_loss{1} average_score{1}')#TODO use true value
-        #self.save_ckpt(metrics[self.reference[1:]])
-        #self.evaluate(self.test_iter, 'test/')
+        self.save_ckpt(metrics[self.reference[1:]])
+        self.evaluate(self.test_iter, 'test/')
 
     def load_from_ckpt(self, exp_name, epoch, step):
         prefix = f'e{epoch}_s{step}'
