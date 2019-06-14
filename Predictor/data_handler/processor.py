@@ -1,7 +1,11 @@
-import torchaudio as ta
+from python_speech_features import mfcc
+from python_speech_features import delta
+from python_speech_features import logfbank
+import scipy.io.wavfile as wav
 import torch as t
+import torchaudio as ta
 import numpy as np
-
+import librosa
 from Predictor.data_handler import load_wav
 from Predictor.data_handler.augments import freq_mask
 from Predictor.data_handler.augments import time_mask
@@ -37,7 +41,7 @@ class AudioParser:
 
     def normalize(self, feature: t.Tensor):
         # faeture : [n_mels, seqlen]
-        feature = (feature - feature.mean(1).unsqueeze(1)) / feature.std(1).unsqueeze(1)
+        feature = (feature - feature.mean()) / feature.std()
         # faeture : [n_mels, seqlen]
         return feature
 
@@ -96,6 +100,57 @@ def build_LFR_features(inputs, m, n):
     return np.vstack(LFR_inputs)
     #     LFR_inputs_batch.append(np.vstack(LFR_inputs))
     # return LFR_inputs_batch
+
+
+@dataclass
+class AudioParser2:
+    sample_rate: int = 16000
+    n_mels: int = 40
+    window_size: int = 400
+    hop: int = 160
+    f_min: int = 40
+    f_max: int = -200
+    pad: int = 0
+    lfr_m: int = 4
+    lfr_n: int = 3
+
+    def extract_feature(self, input_file, feature='fbank', dim=40, cmvn=True, delta=False, delta_delta=False,
+                        window_size=25, stride=10, save_feature=None):
+        y, sr = librosa.load(input_file, sr=None)
+        ws = int(sr * 0.001 * window_size)
+        st = int(sr * 0.001 * stride)
+        if feature == 'fbank':  # log-scaled
+            feat = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=dim,
+                                                  n_fft=ws, hop_length=st)
+            feat = np.log(feat + 1e-6)
+        elif feature == 'mfcc':
+            feat = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=dim, n_mels=26,
+                                        n_fft=ws, hop_length=st)
+            feat[0] = librosa.feature.rmse(y, hop_length=st, frame_length=ws)
+
+        else:
+            raise ValueError('Unsupported Acoustic Feature: ' + feature)
+
+        feat = [feat]
+        if delta:
+            feat.append(librosa.feature.delta(feat[0]))
+
+        if delta_delta:
+            feat.append(librosa.feature.delta(feat[0], order=2))
+        feat = np.concatenate(feat, axis=0)
+        if cmvn:
+            feat = (feat - feat.mean(axis=1)[:, np.newaxis]) / (feat.std(axis=1) + 1e-16)[:, np.newaxis]
+        if save_feature is not None:
+            tmp = np.swapaxes(feat, 0, 1).astype('float32')
+            np.save(save_feature, tmp)
+            return len(tmp)
+        else:
+            return t.Tensor(np.swapaxes(feat, 0, 1).astype('float32'))
+
+    def parse(self, path: str, augment: bool=False) -> t.Tensor:
+        feature = self.extract_feature(path)
+        return feature
+
 
 
 if __name__ == '__main__':

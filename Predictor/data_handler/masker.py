@@ -90,7 +90,6 @@ class Masker:
         subsequent_mask = t.tril(
             t.ones((len_s, len_s), device=seq.device, dtype=t.uint8), diagonal=0)
         subsequent_mask = subsequent_mask.unsqueeze(0).expand(sz_b, -1, -1)  # b x ls x ls
-
         return subsequent_mask.float()
 
 

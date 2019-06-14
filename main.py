@@ -76,7 +76,7 @@ def train(**kwargs):
     #model = model.wrap()
     optimizer = t.optim.Adam(model.parameters(), lr=3e-4, betas=(0.9, 0.98), eps=1e-09)
     assert config.hidden_size
-    optimizer = NoamOpt(config.d_model, 10, config.warm_up, optimizer)
+    optimizer = NoamOpt(config.d_model, 0.2, config.warm_up, optimizer)
     trainer = Trainer11(
         model=model,
         optimizer=optimizer,
@@ -93,4 +93,4 @@ def train(**kwargs):
 
 if __name__ == '__main__':
     #fire.Fire(show_configs)
-    fire.Fire(train, '--lr=3e-4 --model_name="TransformerOffical" --batch_size=256 --drop_exp=False --predump=False --warm_up=4000 --log_every_step=1')
+    fire.Fire(train, '--lr=3e-4 --num_epoch=200 --model_name="TransformerOffical" --batch_size=100 --drop_exp=False --predump=False --use_old=True --warm_up=4000 --log_every_step=10')

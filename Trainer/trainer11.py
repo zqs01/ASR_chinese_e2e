@@ -29,7 +29,6 @@ class Trainer11:
         if self.exp_name is None:
             self.exp_name = self.get_time()
         self.exp_root = os.path.join(self.ckpt_root, self.exp_name)
-        #print(f'exps: {os.listdir(self.ckpt_root)})')
         self.global_step = 0
         self.global_epoch = 0
         if self.drop_exp and os.path.exists(self.exp_root):        #TODO delete if use
@@ -56,8 +55,8 @@ class Trainer11:
         average_loss = 0
         for i, data in enumerate(train_bar):
             metrics, _ = self.model.iterate(data, optimizer=self.optimizer, is_train=True)
-            # lr = self.optimizer.rate()
-            # self.summary_writer.add_scalar('lr', lr, self.global_step)
+            lr = self.optimizer.rate()
+            self.summary_writer.add_scalar('lr', lr, self.global_step)
 
             if self.global_step % self.log_every_iter == 0 and self.global_step != 0:
                 self.summarize(metrics, 'train/')
@@ -74,7 +73,7 @@ class Trainer11:
             average_loss += metrics.loss.item()
             desc = f'Train-epoch: {self.global_epoch}, lr: {round(self.optimizer._rate, 5)}, max_len: {max_len} loss: {round(average_loss / (i+1), 5)}, current loss:{round(metrics.loss.item(), 5)} cer: {round(metrics.cer.item(), 5)}'
             train_bar.set_description(desc)
-        print(f'in train epoch:{self.global_epoch}, average_loss{1} average_score{1}')#TODO use true value
+        #print(f'in train epoch:{self.global_epoch}, average_loss{1} average_score{1}')#TODO use true value
         self.save_ckpt(metrics[self.reference[1:]])
         self.evaluate(self.test_iter, 'test/')
 
@@ -119,7 +118,7 @@ class Trainer11:
             for data in dev_iter:
                 metrics, _ = self.model.iterate(data, is_train=False)
                 dev_metric_manager.update(metrics)
-                desc = f'Valid-loss: {metrics.loss.item()}, cer: {metrics.cer.item()}'
+                desc = f'Valid-loss: {metrics.loss.item()}, cer: {1}'
                 dev_bar.set_description(desc)
             print(f'\nValid, average_loss: {1}, average_score: {1}')#TODO use true value
             report = dev_metric_manager.report_cum()

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from tqdm import tqdm
 from torch.utils.data import Dataset, DataLoader
 
-from Predictor.data_handler import AudioParser
+from Predictor.data_handler import AudioParser, AudioParser2
 from Predictor.data_handler import Padder
 from Predictor.Utils import Pack
 
@@ -49,8 +49,8 @@ class AiShell1(Dataset):
             wave, tgt_for_input, tgt_for_metric = t.load(file)
             return wave, tgt_for_input, tgt_for_metric, line
         else:
-            tgt_for_input = self.vocab.convert_str(line['tgt'], use_bos=True, use_eos=False)
-            tgt_for_metric = self.vocab.convert_str(line['tgt'], use_bos=False, use_eos=True)
+            tgt_for_input = self.vocab.convert_str(line['tgt'], use_bos=False, use_eos=False)
+            tgt_for_metric = self.vocab.convert_str(line['tgt'], use_bos=False, use_eos=False)
             wave = self.parser.parse(line['wave'], augment=self.augment)
             return wave, tgt_for_input, tgt_for_metric, line
 
@@ -94,8 +94,8 @@ def build_dataloader(collector_path, vocab, batch_size, part='test', use_cuda=Tr
         datas = reader.readlines()
     data_set = AiShell1(datas, vocab, sample_rate=sample_rate, window_size=window_size, n_mels=n_mels, augment=augment,
                         use_old=use_old)
-    if part == 'train':
-        data_set.filter(800)
+    # if part == 'train':
+    #     data_set.filter(800)
     if predump:
         data_set.use_old = False
         data_set.pre_dump_features()
