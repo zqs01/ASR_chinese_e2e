@@ -73,6 +73,8 @@ class Trainer11:
             average_loss += metrics.loss.item()
             desc = f'epoch: {self.global_epoch}, lr:{round(self.optimizer._rate, 6)}, max_len: {max_len}, loss: {round(average_loss / (i+1), 4)}, current loss:{round(metrics.loss.item(), 4)} cer: {round(metrics.cer.item(), 4)}'
             train_bar.set_description(desc)
+        if self.global_epoch in [10, 50, 80, 100, 200]:
+            self.evaluate(self.dev_iter, 'dev/')
         #print(f'in train epoch:{self.global_epoch}, average_loss{1} average_score{1}')#TODO use true value
         self.save_ckpt()
         self.evaluate(self.test_iter, 'test/')
