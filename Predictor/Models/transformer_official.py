@@ -13,7 +13,7 @@ import torch.nn.functional as F
 import torch.nn as nn
 
 from .attention import MultiHeadAttention
-from .module import PositionalEncoding, PositionwiseFeedForward
+from .module import PositionalEncoding, PositionwiseFeedForward, PositionwiseFeedForwardUseConv
 from .utils import (IGNORE_ID, get_attn_key_pad_mask, get_attn_pad_mask,
                    get_non_pad_mask, get_subsequent_mask, pad_list)
 
@@ -152,6 +152,8 @@ class Encoder(nn.Module):
         self.layer_stack = nn.ModuleList([
             EncoderLayer(d_model, d_inner, n_head, d_k, d_v, dropout=dropout)
             for _ in range(n_layers)])
+
+        t.nn.init.xavier_normal_(self.linear_in.weight)
 
     def forward(self, padded_input, input_lengths, return_attns=False):
         """

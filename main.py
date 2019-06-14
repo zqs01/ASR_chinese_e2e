@@ -17,15 +17,19 @@ class TrainConfig(DataConfigAiShell1):
     eval_batch_size = 16
     num_epoch = 20
     warm_up = 1000
-    device_id = (0, 1)
+    device_id = [0, 1]
     exp_name = None
     drop_exp = True
     ckpt_root: str = 'ckpt/'
     log_every_iter: int = 100
     eval_every_iter: int = 20000
     save_every_iter: int = 10000
+
+    from_ckpt: str = None # TODO not implemented !
+    from_epoch: str = None
+    from_step: str = None
     reference = '-loss'
-    from_ckpt = None # TODO not implemented !
+
     model_name = 'ExampleModel'
     predump = True ## pre dump feature when build data sets
     use_old = True ## use dumped feature when data loader
@@ -76,7 +80,7 @@ def train(**kwargs):
     #model = model.wrap()
     optimizer = t.optim.Adam(model.parameters(), lr=3e-4, betas=(0.9, 0.98), eps=1e-09)
     assert config.hidden_size
-    optimizer = NoamOpt(config.d_model, 0.2, config.warm_up, optimizer)
+    optimizer = NoamOpt(config.d_model, 1, config.warm_up, optimizer)
     trainer = Trainer11(
         model=model,
         optimizer=optimizer,
@@ -87,10 +91,13 @@ def train(**kwargs):
         save_every_iter=config.save_every_iter
     )
     print(f'start trainning at {trainer.get_time()}\n')
-    trainer.train()
+    if config.from_ckpt is not None:
+        trainer.train(config.from_ckpt, config.from_epoch, config.from_step)
+    else:
+        trainer.train()
     print(f'done at {trainer.get_time()}\n')
 
 
 if __name__ == '__main__':
     #fire.Fire(show_configs)
-    fire.Fire(train, '--lr=3e-4 --num_epoch=200 --model_name="TransformerOffical" --batch_size=100 --drop_exp=False --predump=False --use_old=True --warm_up=4000 --log_every_step=10')
+    fire.Fire(train, '--lr=3e-4 --num_epoch=200 --model_name="TransformerOffical" --batch_size=64 --drop_exp=False --predump=False --use_old=True --warm_up=4000 --log_every_step=10')

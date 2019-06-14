@@ -39,11 +39,11 @@ class Trainer11:
         self.config = self.model.config
         assert self.reference[0] in ['-', '+']
 
-    def train(self, from_ckpt=None):
+    def train(self, from_ckpt=None, from_epoch=None, from_step=None):
         self.best = 1e10 if self.reference[0] == '-' else 0
-        # if from_ckpt is not None:
-        #     exp_name =
-        #     self.load_from_ckpt(exp_name=, epoch=, step=)
+        if from_ckpt is not None and from_epoch is not None and from_step is not None:
+            self.load_from_ckpt(exp_name=from_ckpt, epoch=from_epoch, step=from_step)
+
         for i in range(self.config.num_epoch):
             self.train_epoch()
             self.global_epoch += 1
@@ -66,15 +66,15 @@ class Trainer11:
                 self.evaluate(self.dev_iter, 'dev/')
 
             if self.global_step % self.save_every_iter == 0 and self.global_step != 0:
-                self.save_ckpt(metrics[self.reference[1:]])
+                self.save_ckpt()
             le = data.wave.size(1)
             if le > max_len:
                 max_len = le
             average_loss += metrics.loss.item()
-            desc = f'Train-epoch: {self.global_epoch}, lr: {round(self.optimizer._rate, 5)}, max_len: {max_len} loss: {round(average_loss / (i+1), 5)}, current loss:{round(metrics.loss.item(), 5)} cer: {round(metrics.cer.item(), 5)}'
+            desc = f'epoch: {self.global_epoch}, lr:{round(self.optimizer._rate, 6)}, max_len: {max_len}, loss: {round(average_loss / (i+1), 4)}, current loss:{round(metrics.loss.item(), 4)} cer: {round(metrics.cer.item(), 4)}'
             train_bar.set_description(desc)
         #print(f'in train epoch:{self.global_epoch}, average_loss{1} average_score{1}')#TODO use true value
-        self.save_ckpt(metrics[self.reference[1:]])
+        self.save_ckpt()
         self.evaluate(self.test_iter, 'test/')
 
     def load_from_ckpt(self, exp_name, epoch, step):
@@ -88,7 +88,7 @@ class Trainer11:
         self.config = self.model.config
         print(f'train state loaded from {os.path.join(self.ckpt_root, exp_name)}_epoch:{epoch} step:{step}\n')
 
-    def save_ckpt(self, reference_score):
+    def save_ckpt(self):
         prefix = f'e{self.global_epoch}_s{self.global_step}'
         model_file = os.path.join(self.exp_root, prefix+'.model')
         opt_file = os.path.join(self.exp_root, prefix+'.opt')
@@ -127,5 +127,5 @@ class Trainer11:
             self.model.train()
 
     def get_time(self):
-        return (datetime.datetime.now() + datetime.timedelta(hours=8)).strftime("%Y%m%d_%H%M")
+        return (datetime.datetime.now() + datetime.timedelta(hours=8)).strftime("%Y%m%d%H%M")
 

@@ -1,9 +1,9 @@
-###End to End Speech Recognize in Chinese
+##End to End Speech Recognize in Chinese
 ##### Under progress
 
-##### Model: 
+#### Model: 
     Transformer:
-##### File System:
+#### File System:
 
     --ckpt: folder for checkpoints
     --data
@@ -26,7 +26,7 @@
     --main.py
     --preprocess.py
 
-#####usage:
+####usage:
     
     put datafile in data/
     custom data_extract.py
