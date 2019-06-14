@@ -29,7 +29,6 @@ class TransformerNew2(BaseModel):
         self.input_linear = Linear(config.n_mels, config.d_model, config.dropout)
         self.position_encoder = PositionalEncoding(config.d_model)
         self.word_embeder = t.nn.Embedding(vocab.vocab_size, config.d_model, padding_idx=0)
-        self.word_embeder.weight.data.normal_(0, 0.1)
 
         self.encoder = Encoder(input_size=config.d_model, hidden_size=config.hidden_size, ff_size=config.ff_size,
                                num_head=config.num_head, dropout=config.dropout, num_layer=config.layer_num)

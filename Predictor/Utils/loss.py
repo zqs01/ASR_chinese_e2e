@@ -2,7 +2,7 @@ import torch
 import torch.nn.functional as F
 
 
-IGNORE_ID=0
+IGNORE_ID = 0
 
 def cal_performance(pred, gold, smoothing=0.0):
     """Calculate cross entropy loss, apply label smoothing if needed.
@@ -72,7 +72,5 @@ def calculate_loss(pred, gold, smoothing=0.0):
         loss = -(one_hot * log_prb).sum(dim=1)
         loss = loss.masked_select(non_pad_mask).sum() / n_word
     else:
-        loss = F.cross_entropy(pred, gold,
-                               ignore_index=0,
-                               reduction='mean')
+        loss = F.cross_entropy(pred, gold, ignore_index=0, reduction='mean')
     return loss
