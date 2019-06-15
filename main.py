@@ -6,17 +6,16 @@ from Predictor import Models
 from Predictor.data_handler import Vocab
 from Predictor.data_handler import DataConfigAiShell1
 from data.data_loader.ai_shell_1 import build_dataloader
-from Trainer import Trainer11, NoamOpt
+from Trainer import Trainer11
 from Trainer import NoamOpt
-
 
 
 class TrainConfig(DataConfigAiShell1):
     lr = 1e-3
     batch_size = 16
     eval_batch_size = 16
-    num_epoch = 20
-    warm_up = 1000
+    num_epoch = 200
+    warm_up = 4000
     device_id = [0, 1]
     exp_name = None
     drop_exp = True
@@ -29,8 +28,9 @@ class TrainConfig(DataConfigAiShell1):
     from_epoch: str = None
     from_step: str = None
     reference = '-loss'
+    k: int = 1
 
-    model_name = 'ExampleModel'
+    model_name = 'TransformerOffical'
     predump = True ## pre dump feature when build data sets
     use_old = True ## use dumped feature when data loader
 
@@ -80,7 +80,7 @@ def train(**kwargs):
     #model = model.wrap()
     optimizer = t.optim.Adam(model.parameters(), lr=3e-4, betas=(0.9, 0.98), eps=1e-09)
     assert config.hidden_size
-    optimizer = NoamOpt(config.d_model, 1, config.warm_up, optimizer)
+    #optimizer = NoamOpt(config.d_model, config.k, config.warm_up, optimizer)
     trainer = Trainer11(
         model=model,
         optimizer=optimizer,
@@ -100,4 +100,4 @@ def train(**kwargs):
 
 if __name__ == '__main__':
     #fire.Fire(show_configs)
-    fire.Fire(train, '--lr=3e-4 --num_epoch=200 --model_name="TransformerOffical" --batch_size=64 --drop_exp=False --predump=False --use_old=True --warm_up=4000 --log_every_step=10')
+    fire.Fire(train, '--num_epoch=200 --n_mels=80 --batch_size=16 --drop_exp=False --k=1 --predump=False --use_old=True --log_every_step=10')

@@ -4,7 +4,8 @@ from dataclasses import dataclass
 from tqdm import tqdm
 from torch.utils.data import Dataset, DataLoader
 
-from Predictor.data_handler import AudioParser, AudioParser2
+from Predictor.data_handler import AudioParser
+from Predictor.data_handler import time_mask, freq_mask
 from Predictor.data_handler import Padder
 from Predictor.Utils import Pack
 
@@ -64,6 +65,69 @@ class AiShell1(Dataset):
             t.save((wave, tgt_for_input, tgt_for_metric), file)
 
 
+class AiShell1_aug(Dataset):
+    """
+    parser paras, some is not implemented
+        sample_rate: int = 16000
+        n_mels: int = 40
+        window_size: int = 400
+        hop: int = None
+        f_min: int = 0
+        f_max: int = None
+        pad: int = 0
+    """
+    def __init__(self, datas, vocab, sample_rate=16000, window_size=400, n_mels=40, augment=False, use_old=False):
+        super(AiShell1_aug, self).__init__()
+        self.datas = datas
+        self.vocab = vocab
+
+        self.parser = AudioParser(sample_rate=sample_rate, n_mels=n_mels, window_size=window_size)
+        self.augment = augment
+        self.use_old = use_old
+
+    def filter(self, lenths):
+        n = []
+        l = len(self.datas)
+        for i, v in tqdm(enumerate(self.datas), desc=f'filter train data longer than {lenths}.'):
+            wave, _, _, _ = self.__getitem__(i)
+            l1 = wave.shape[0]
+            if l1 < lenths:
+                n.append(v)
+        self.datas = n
+
+        print(f'filter done, {l - len(self.datas)} sample filtered, {len(self.datas)} sample left.')
+
+    def __getitem__(self, item):
+        line = json.loads(self.datas[item])
+
+        if self.use_old:
+            file = line['wave'].split('.')[0] + '.t'
+            wave, tgt_for_input, tgt_for_metric = t.load(file)
+            if self.augment:
+                wave = wave.unsqueeze(0).transpose(1, 2)
+                wave = freq_mask(time_mask(wave))
+                wave = wave.transpose(1, 2).squeeze(0)
+            return wave, tgt_for_input, tgt_for_metric, line
+        else:
+            tgt_for_input = self.vocab.convert_str(line['tgt'], use_bos=False, use_eos=False)
+            tgt_for_metric = self.vocab.convert_str(line['tgt'], use_bos=False, use_eos=False)
+            wave = self.parser.parse(line['wave'])
+            if self.augment:
+                wave = wave.unsqueeze(0).transpose(1, 2)
+                wave = freq_mask(time_mask(wave))
+                wave = wave.transpose(1, 2).squeeze(0)
+            return wave, tgt_for_input, tgt_for_metric, line
+
+    def __len__(self):
+        return len(self.datas)
+
+    def pre_dump_features(self):
+        for i in tqdm(self, desc='pre dumping features'):
+            wave, tgt_for_input, tgt_for_metric, line = i
+            file = line['wave'].split('.')[0] + '.t'
+            t.save((wave, tgt_for_input, tgt_for_metric), file)
+
+
 @dataclass
 class collat:
     """
@@ -84,7 +148,6 @@ class collat:
         pack.add(tgt_for_metric=tgt_for_metric.long())
         if self.use_cuda:
             pack = pack.cuda()
-
         return pack
 
 

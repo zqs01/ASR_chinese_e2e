@@ -13,7 +13,7 @@ import torch.nn.functional as F
 import torch.nn as nn
 
 from .attention import MultiHeadAttention
-from .module import PositionalEncoding, PositionwiseFeedForward, PositionwiseFeedForwardUseConv
+from .module import PositionalEncoding, PositionwiseFeedForward
 from .utils import (IGNORE_ID, get_attn_key_pad_mask, get_attn_pad_mask,
                    get_non_pad_mask, get_subsequent_mask, pad_list)
 
@@ -99,7 +99,7 @@ class TransformerOffical(BaseModel):
         if optimizer is not None and is_train:
             optimizer.zero_grad()
             metrics.loss.backward()
-            t.nn.utils.clip_grad_norm_(self.parameters(), 5.0)
+            #t.nn.utils.clip_grad_norm_(self.parameters(), 400.0)
             optimizer.step()
         return metrics, None
 
@@ -153,7 +153,7 @@ class Encoder(nn.Module):
             EncoderLayer(d_model, d_inner, n_head, d_k, d_v, dropout=dropout)
             for _ in range(n_layers)])
 
-        t.nn.init.xavier_normal_(self.linear_in.weight)
+        #t.nn.init.xavier_normal_(self.linear_in.weight)
 
     def forward(self, padded_input, input_lengths, return_attns=False):
         """
@@ -199,7 +199,7 @@ class EncoderLayer(nn.Module):
         super(EncoderLayer, self).__init__()
         self.slf_attn = MultiHeadAttention(
             n_head, d_model, d_k, d_v, dropout=dropout)
-        self.pos_ffn = PositionwiseFeedForwardUseConv(
+        self.pos_ffn = PositionwiseFeedForward(
             d_model, d_inner, dropout=dropout)
 
     def forward(self, enc_input, non_pad_mask=None, slf_attn_mask=None):
@@ -441,7 +441,7 @@ class DecoderLayer(nn.Module):
         super(DecoderLayer, self).__init__()
         self.slf_attn = MultiHeadAttention(n_head, d_model, d_k, d_v, dropout=dropout)
         self.enc_attn = MultiHeadAttention(n_head, d_model, d_k, d_v, dropout=dropout)
-        self.pos_ffn = PositionwiseFeedForwardUseConv(d_model, d_inner, dropout=dropout)
+        self.pos_ffn = PositionwiseFeedForward(d_model, d_inner, dropout=dropout)
 
     def forward(self, dec_input, enc_output, non_pad_mask=None, slf_attn_mask=None, dec_enc_attn_mask=None):
         dec_output, dec_slf_attn = self.slf_attn(

@@ -55,8 +55,8 @@ class Trainer11:
         average_loss = 0
         for i, data in enumerate(train_bar):
             metrics, _ = self.model.iterate(data, optimizer=self.optimizer, is_train=True)
-            lr = self.optimizer.rate()
-            self.summary_writer.add_scalar('lr', lr, self.global_step)
+            # lr = self.optimizer.rate()
+            # self.summary_writer.add_scalar('lr', lr, self.global_step)
 
             if self.global_step % self.log_every_iter == 0 and self.global_step != 0:
                 self.summarize(metrics, 'train/')
@@ -71,7 +71,7 @@ class Trainer11:
             if le > max_len:
                 max_len = le
             average_loss += metrics.loss.item()
-            desc = f'epoch: {self.global_epoch}, lr:{round(self.optimizer._rate, 6)}, max_len: {max_len}, loss: {round(average_loss / (i+1), 4)}, current loss:{round(metrics.loss.item(), 4)} cer: {round(metrics.cer.item(), 4)}'
+            desc = f'epoch: {self.global_epoch}, max_len: {max_len}, loss: {round(average_loss / (i+1), 4)}, current loss:{round(metrics.loss.item(), 4)} cer: {round(metrics.cer.item(), 4)}'
             train_bar.set_description(desc)
         if self.global_epoch in [10, 50, 80, 100, 200]:
             self.evaluate(self.dev_iter, 'dev/')

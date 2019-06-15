@@ -9,7 +9,7 @@ class DataConfigAiShell1(BaseConfig):
     data_root = 'data/'
 
     sample_rate = 16000
-    n_mels = 80
+    n_mels = 40
     window_size = 400
     augment = False
     lfr_m = 4
