@@ -1,11 +1,11 @@
-##End to End Speech Recognize in Chinese
+###End to End Speech Recognize in Chinese
 ##### Under progress
 
-#### Model: 
+##### Model: 
     Transformer:
-#### File System:
+##### File System:
 
-    --ckpt: folder for checkpoints
+    --ckpt
     --data
         --data_collector: build data manifist
         --data_loader :dataset & dataloader
@@ -26,7 +26,7 @@
     --main.py
     --preprocess.py
 
-####usage:
+#####usage:
     
     put datafile in data/
     custom data_extract.py
@@ -36,4 +36,3 @@
     python preprocess.py
     python main.py --num_epoch=20
     
-train configs in main.py, data configs in predictor.data_handler.data_config.py, model configs in model class, those configs will be combined and change in main.py

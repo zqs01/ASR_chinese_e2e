@@ -83,7 +83,7 @@ class TransformerOffical(BaseModel):
     def cal_metrics(self, output, input):
         pack = Pack()
         pred, gold = output.pred, output.gold
-        loss, n_correct = cal_performance(pred, gold)
+        loss, n_correct = cal_performance(pred, gold, smoothing=self.config.smoothing)
         output_id = pred.topk(1)[1].squeeze(-1)
         assert not t.isinf(loss)
         output_str = [self.vocab.convert_id2str(i) for i in output_id]
@@ -99,7 +99,7 @@ class TransformerOffical(BaseModel):
         if optimizer is not None and is_train:
             optimizer.zero_grad()
             metrics.loss.backward()
-            #t.nn.utils.clip_grad_norm_(self.parameters(), 400.0)
+            t.nn.utils.clip_grad_norm_(self.parameters(), 100.0)
             optimizer.step()
         return metrics, None
 
@@ -152,8 +152,6 @@ class Encoder(nn.Module):
         self.layer_stack = nn.ModuleList([
             EncoderLayer(d_model, d_inner, n_head, d_k, d_v, dropout=dropout)
             for _ in range(n_layers)])
-
-        #t.nn.init.xavier_normal_(self.linear_in.weight)
 
     def forward(self, padded_input, input_lengths, return_attns=False):
         """
